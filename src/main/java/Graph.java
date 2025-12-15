@@ -1,4 +1,4 @@
-package main.java.app.graph;
+package main.java;
 
 public class Graph {
     
