@@ -7,95 +7,112 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class JsonLoader {
     
-    // --- reading (LOAD) ---
+    // --- LOAD JSON (Using Regex for stability) ---
     public static void load(String filePath, Graph graph) {
-        // 1. Изчистваме старите данни, за да не се смесват с новите
+        // 1. Clear previous data
         graph.nodes.clear();
         graph.edges.clear();
         
         try {
             File f = new File(filePath);
             if (!f.exists()) {
-                System.out.println("ГРЕШКА: Файлът не е намерен: " + filePath);
+                // TRANSLATED: Error message
+                System.out.println("ERROR: File not found: " + filePath);
                 return;
             }
             String content = new String(Files.readAllBytes(Paths.get(filePath)));
 
-            // --- ПАРСВАНЕ НА NODES ---
-            String[] nodesSplit = content.split("\"nodes\": \\[");
-            if (nodesSplit.length > 1) {
-                String nodesData = nodesSplit[1].split("\\]")[0]; // Взимаме всичко до затварящата скоба ]
-                // Разделяме на отделни обекти по затваряща фигурна скоба },
-                String[] entries = nodesData.split("\\},");
+            // --- 2. PARSE NODES ---
+            
+            // [REGEX USED HERE] 
+            // We use Regex to extract node properties. 
+            // \s* allows for any amount of whitespace, making it robust against formatting changes.
+            Pattern nodePattern = Pattern.compile("\\{\\s*\"id\":\\s*(\\d+),\\s*\"name\":\\s*\"(.*?)\",\\s*\"x\":\\s*([\\d\\.]+),\\s*\"y\":\\s*([\\d\\.]+),\\s*\"activity\":\\s*([\\d\\.]+),\\s*\"interaction\":\\s*(\\d+),\\s*\"projects\":\\s*(\\d+)");
+            Matcher nodeMatcher = nodePattern.matcher(content);
 
-                for (String entry : entries) {
-                    int id = parseInt(entry, "id");
-                    // Ако id-то е валидно, вадим и другите данни
-                    if (id != 0) {
-                        String name = parseString(entry, "name");
-                        double x = parseDouble(entry, "x");
-                        double y = parseDouble(entry, "y");
-                        double act = parseDouble(entry, "activity");
-                        int inter = parseInt(entry, "interaction");
-                        int proj = parseInt(entry, "projects");
+            while (nodeMatcher.find()) {
+                try {
+                    int id = Integer.parseInt(nodeMatcher.group(1));
+                    String name = nodeMatcher.group(2);
+                    double x = Double.parseDouble(nodeMatcher.group(3));
+                    double y = Double.parseDouble(nodeMatcher.group(4));
+                    double act = Double.parseDouble(nodeMatcher.group(5));
+                    int inter = Integer.parseInt(nodeMatcher.group(6));
+                    int proj = Integer.parseInt(nodeMatcher.group(7));
 
-                        graph.addNode(new Node(id, name, x, y, act, inter, proj));
-                    }
+                    graph.addNode(new Node(id, name, x, y, act, inter, proj));
+                } catch (Exception e) {
+                    // TRANSLATED: Error parsing specific node
+                    System.out.println("Error parsing node: " + e.getMessage());
                 }
             }
+            // TRANSLATED: Success message
+            System.out.println("Nodes loaded: " + graph.nodes.size());
 
-            // --- ПАРСВАНЕ НА EDGES ---
-            String[] edgesSplit = content.split("\"edges\": \\[");
-            if (edgesSplit.length > 1) {
-                String edgesData = edgesSplit[1].split("\\]")[0];
-                String[] entries = edgesData.split("\\},");
+            // --- 3. PARSE EDGES ---
+            // Split content to find the "edges" section
+            String[] parts = content.split("\"edges\":\\s*\\[");
+            if (parts.length > 1) {
+                String edgesContent = parts[1];
+                
+                // [REGEX USED HERE]
+                // We use Regex to find "source" and "target" pairs specifically.
+                // This ignores newlines or spaces between the numbers.
+                Pattern edgePattern = Pattern.compile("\\{\\s*\"source\":\\s*(\\d+),\\s*\"target\":\\s*(\\d+)\\s*\\}");
+                Matcher edgeMatcher = edgePattern.matcher(edgesContent);
 
-                for (String entry : entries) {
-                    int sId = parseInt(entry, "source");
-                    int tId = parseInt(entry, "target");
+                int edgesCount = 0;
+                while (edgeMatcher.find()) {
+                    int sId = Integer.parseInt(edgeMatcher.group(1));
+                    int tId = Integer.parseInt(edgeMatcher.group(2));
                     
                     Node s = graph.getNodeById(sId);
                     Node t = graph.getNodeById(tId);
                     
                     if (s != null && t != null) {
-                        graph.addEdge(s, t); 
+                        graph.addEdge(s, t);
+                        edgesCount++;
+                    } else {
+                        // TRANSLATED: Warning message
+                        System.out.println("Warning: Attempting to connect non-existent ID: " + sId + " -> " + tId);
                     }
                 }
+                // TRANSLATED: Success message
+                System.out.println("Edges loaded: " + edgesCount);
             }
-            System.out.println("Данните са заредени успешно от: " + filePath);
 
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    // --- ЗАПИСВАНЕ (SAVE) - НОВО! ---
+    // --- SAVE JSON ---
     public static void save(String filePath, Graph graph) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
         
-        // 1. Записваме Nodes
+        // 1. Write Nodes
         sb.append("  \"nodes\": [\n");
         for (int i = 0; i < graph.nodes.size(); i++) {
             Node n = graph.nodes.get(i);
-            // Форматираме данните като текст
-            sb.append(String.format("    { \"id\": %d, \"name\": \"%s\", \"x\": %.1f, \"y\": %.1f, \"activity\": %.2f, \"interaction\": %d, \"projects\": %d }",
+            // Format string to match JSON structure
+            sb.append(String.format("    { \"id\": %d, \"name\": \"%s\", \"x\": %.2f, \"y\": %.2f, \"activity\": %.2f, \"interaction\": %d, \"projects\": %d }",
                     n.id, n.name, n.x, n.y, n.activity, n.interaction, n.projects));
             
-            // Слагаме запетая след всеки ред, освен последния
             if (i < graph.nodes.size() - 1) sb.append(","); 
             sb.append("\n");
         }
         sb.append("  ],\n");
 
-        // 2. Записваме Edges
+        // 2. Write Edges
         sb.append("  \"edges\": [\n");
-        // Използваме хитрина: записваме само връзките, където source ID < target ID.
-        // Така избягваме дублирането (защото в паметта пазим и 1->2, и 2->1), а в файла ни трябва само веднъж.
         List<String> edgesLines = new ArrayList<>();
+        // Prevent duplicates (save only if source ID < target ID)
         for (Edge e : graph.edges) {
             if (e.source.id < e.target.id) {
                 edgesLines.add(String.format("    { \"source\": %d, \"target\": %d }", e.source.id, e.target.id));
@@ -111,38 +128,12 @@ public class JsonLoader {
         sb.append("  ]\n");
         sb.append("}");
 
-        // Записваме готовия текст във файла
         try (FileWriter writer = new FileWriter(filePath)) {
             writer.write(sb.toString());
-            System.out.println("Файлът е запазен успешно: " + filePath);
+            // TRANSLATED: Success message
+            System.out.println("File saved successfully: " + filePath);
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-
-    // --- Помощни методи (без промяна) ---
-    private static String parseString(String src, String key) {
-        try {
-            int start = src.indexOf("\"" + key + "\":") + key.length() + 4; // +4 заради ": " и кавичките
-            int end = src.indexOf("\"", start);
-            return src.substring(start, end);
-        } catch (Exception e) { return ""; }
-    }
-    private static int parseInt(String src, String key) {
-        try { return Integer.parseInt(extractVal(src, key)); } catch(Exception e) { return 0; }
-    }
-    private static double parseDouble(String src, String key) {
-        try { return Double.parseDouble(extractVal(src, key)); } catch(Exception e) { return 0.0; }
-    }
-    private static String extractVal(String src, String key) {
-        int start = src.indexOf("\"" + key + "\":") + key.length() + 3; // по-малко отместване за числа
-        int end = src.indexOf(",", start);
-        if (end == -1) end = src.indexOf("}", start); // Ако е последен елемент
-        
-        String val = src.substring(start, end).trim();
-        // Чистене на остатъчни скоби, ако парсването е грубо
-        if (val.endsWith("}")) val = val.substring(0, val.length()-1).trim();
-        if (val.endsWith("]")) val = val.substring(0, val.length()-1).trim();
-        return val;
     }
 }
