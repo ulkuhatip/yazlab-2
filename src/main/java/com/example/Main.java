@@ -29,6 +29,15 @@ public class Main extends Application {
     private Node selected1 = null;
     private Node selected2 = null;
     private List<Node> highlightedPath = new ArrayList<>();
+    // --- Employee Info Panel labels ---
+    private Label lblId = new Label();
+    private Label lblName = new Label();
+    private Label lblActivity = new Label();
+    private Label lblInteraction = new Label();
+    private Label lblProjects = new Label();
+    private Label lblTitle = new Label("Employee Info");
+
+
 
     public static void main(String[] args) {
         launch(args);
@@ -92,6 +101,29 @@ public class Main extends Application {
 
         // --- CENTER ---
         root.setCenter(canvas);
+        // --- RIGHT INFO PANEL ---
+        GridPane infoPanel = new GridPane();
+        infoPanel.setPadding(new Insets(10));
+        infoPanel.setHgap(10);
+        infoPanel.setVgap(8);
+
+        infoPanel.add(new Label("ID:"), 0, 0);
+        infoPanel.add(lblId, 1, 0);
+
+        infoPanel.add(new Label("Name:"), 0, 1);
+        infoPanel.add(lblName, 1, 1);
+
+        infoPanel.add(new Label("Activity:"), 0, 2);
+        infoPanel.add(lblActivity, 1, 2);
+
+        infoPanel.add(new Label("Interactions:"), 0, 3);
+        infoPanel.add(lblInteraction, 1, 3);
+
+        infoPanel.add(new Label("Projects:"), 0, 4);
+        infoPanel.add(lblProjects, 1, 4);
+
+        root.setRight(infoPanel);
+
         
         // --- BUTTONS (Bottom) ---
         VBox bottomContainer = new VBox(10);
@@ -226,6 +258,25 @@ public class Main extends Application {
         primaryStage.show();
     }
 
+    private void showNodeInfo(Node n) {
+    lblTitle.setText("Employee Info");
+    lblId.setText(String.valueOf(n.id));
+    lblName.setText(n.name);
+    lblActivity.setText(String.valueOf(n.activity));
+    lblInteraction.setText(String.valueOf(n.interaction));
+    lblProjects.setText(String.valueOf(n.projects));
+}
+
+    private void clearNodeInfo() {
+    lblTitle.setText("Select a person");
+    lblId.setText("-");
+    lblName.setText("-");
+    lblActivity.setText("-");
+    lblInteraction.setText("-");
+    lblProjects.setText("-");
+}
+
+
     // --- DIALOG FOR ADD/EDIT (НОВО!) ---
     private void openNodeDialog(Node node, boolean isNew) {
         Dialog<Node> dialog = new Dialog<>();
@@ -353,13 +404,30 @@ public class Main extends Application {
 
     private void handleClick(double x, double y) {
         Node clicked = findNodeAt(x, y);
+
         if (clicked != null) {
-            if (selected1 == null) selected1 = clicked;
-            else if (selected2 == null && clicked != selected1) selected2 = clicked;
-            else { selected1 = clicked; selected2 = null; highlightedPath.clear(); }
+            if (selected1 == null) {
+                selected1 = clicked;
+            } 
+            else if (selected2 == null && clicked != selected1) {
+                selected2 = clicked;
+            } 
+            else {
+                selected1 = clicked;
+                selected2 = null;
+                highlightedPath.clear();
+            }
+
+            showNodeInfo(clicked);
+
             infoArea.setText("Selected: " + clicked.name);
+        } 
+        else {
+            //  BOŞLUĞA TIKLAMA
+            clearNodeInfo();
         }
     }
+
 
     private boolean isEdgeInPath(Edge e) {
         if (highlightedPath.size() < 2) return false;
