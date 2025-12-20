@@ -1,4 +1,4 @@
-package main.java.com.example; 
+package com.example; 
 
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;

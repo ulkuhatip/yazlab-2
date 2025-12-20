@@ -11,11 +11,11 @@ public class Graph {
     }
 
     public void addEdge(Node s, Node t) {
-        // Добавяме връзката и в двете посоки, защото е ненасочен граф
         edges.add(new Edge(s, t));
         edges.add(new Edge(t, s));
     }
 
+    //we can change the searching algo id to have better performance (plus for PRESENTATION )
     public Node getNodeById(int id) {
         for (Node n : nodes) {
             if (n.id == id) return n;
