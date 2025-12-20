@@ -8,11 +8,12 @@ import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
-import javafx.stage.FileChooser; // <-- ВАЖНО: За прозореца с файловете
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random; 
 
 public class Main extends Application {
     private Graph graph = new Graph();
@@ -30,7 +31,7 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        // Опитваме да заредим файл по подразбиране, ако има такъв
+        // --- Load default data if exists ---
         File defaultFile = new File("data.json");
         if(defaultFile.exists()) {
             JsonLoader.load("data.json", graph);
@@ -38,55 +39,63 @@ public class Main extends Application {
 
         BorderPane root = new BorderPane();
 
-        // --- МЕНЮ (File -> Open / Save) ---
+        // --- Menu ---
         MenuBar menuBar = new MenuBar();
-        Menu menuFile = new Menu("File"); // Главното меню
         
+        // Menu File
+        Menu menuFile = new Menu("File");
         MenuItem itemOpen = new MenuItem("Open JSON...");
         MenuItem itemSave = new MenuItem("Save JSON...");
         MenuItem itemExit = new MenuItem("Exit");
+        
+        // Menu Tools
+        Menu menuTools = new Menu("Tools");
+        MenuItem itemGenerate = new MenuItem("Generate 100 Random People");
 
-        // Действие за БУТОНА OPEN
+        // --- Menubar ---
+
         itemOpen.setOnAction(e -> {
             FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Избери файл от приятел");
-            // Филтър да показва само .json файлове
+            fileChooser.setTitle("Choose JSON File");
             fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
-            
-            File file = fileChooser.showOpenDialog(primaryStage); // Отваря прозореца
+            File file = fileChooser.showOpenDialog(primaryStage);
             if (file != null) {
                 JsonLoader.load(file.getAbsolutePath(), graph);
-                infoArea.setText("Успешно зареден файл: " + file.getName());
-                // Ресет на селекциите, защото зареждаме нов граф
-                selected1 = null; selected2 = null; highlightedPath.clear();
-                draw(); // Прерисуваме всичко
+                infoArea.setText("Load File: " + file.getName());
+                resetSelection();
+                draw();
             }
         });
 
-        // Действие за БУТОНА SAVE
         itemSave.setOnAction(e -> {
             FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Запази своята работа");
+            fileChooser.setTitle("Safe JSON File");
             fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
-            fileChooser.setInitialFileName("my_graph_new.json"); // Предлага име
-            
-            File file = fileChooser.showSaveDialog(primaryStage); // Отваря прозореца за запис
+            fileChooser.setInitialFileName("data.json");
+            File file = fileChooser.showSaveDialog(primaryStage);
             if (file != null) {
                 JsonLoader.save(file.getAbsolutePath(), graph);
-                infoArea.setText("Файлът е запазен! Можеш да го пратиш.");
+                infoArea.setText("File is load successfully!");
             }
+        });
+
+        // generating 100 new people
+        itemGenerate.setOnAction(e -> {
+            generateRandomData(100); // Create 100 random nodes and edges
+            infoArea.setText("100 people ramdomly generated. Press save to keep the data.");
+            resetSelection();
+            draw();
         });
 
         itemExit.setOnAction(e -> System.exit(0));
         
-        // Сглобяване на менюто
         menuFile.getItems().addAll(itemOpen, itemSave, new SeparatorMenuItem(), itemExit);
-        menuBar.getMenus().add(menuFile);
+        menuTools.getItems().add(itemGenerate);
         
-        // Слагаме менюто най-горе
+        menuBar.getMenus().addAll(menuFile, menuTools);
         root.setTop(menuBar);
 
-        // --- ОСТАНАЛАТА ЧАСТ (Платно и Бутони) ---
+        // --- Center and Buttons ---
         root.setCenter(canvas);
         
         HBox controls = new HBox(10);
@@ -101,12 +110,11 @@ public class Main extends Application {
         bottomPanel.setTop(controls); 
         infoArea.setPrefHeight(100);
         bottomPanel.setCenter(infoArea);
-        
         root.setBottom(bottomPanel);
 
-        draw(); // Първоначално рисуване
+        draw();
 
-        // --- ЕВЕНТИ (Кликане и бутони) ---
+        // --- Events ---
         canvas.setOnMouseClicked(e -> {
             handleClick(e.getX(), e.getY());
             draw();
@@ -115,57 +123,95 @@ public class Main extends Application {
         btnDijkstra.setOnAction(e -> {
             if (selected1 != null && selected2 != null) {
                 highlightedPath = graph.runDijkstra(selected1, selected2);
-                infoArea.setText(highlightedPath.isEmpty() ? "Няма път." : "Път намерен: " + highlightedPath.size() + " стъпки.");
+                infoArea.setText(highlightedPath.isEmpty() ? "No connection between " + selected1.name + " and " + selected2.name + "." : "Route found: " + highlightedPath.size() + " steps.");
                 draw();
-            } else infoArea.setText("Моля, избери двама души (кликни върху тях)!");
+            } else infoArea.setText("Please choose two people!");
         });
 
         btnColor.setOnAction(e -> {
             graph.runColoring();
             draw();
-            infoArea.setText("Графът е оцветен по Welsh-Powell!");
+            infoArea.setText("Coloring done!");
         });
 
         btnCentrality.setOnAction(e -> {
             List<Node> top = graph.getTopCentrality();
             if (!top.isEmpty()) {
-                infoArea.setText("Лидер с най-много връзки: " + top.get(0).name + " (" + graph.getDegree(top.get(0)) + " връзки)");
+                infoArea.setText("Lider: " + top.get(0).name + " (" + graph.getDegree(top.get(0)) + " edges)");
             }
         });
 
         btnReset.setOnAction(e -> {
-            selected1 = null; selected2 = null; highlightedPath.clear();
-            for(Node n : graph.nodes) n.colorIndex = 0;
+            resetSelection();
             draw();
-            infoArea.setText("Изгледът е изчистен.");
+            infoArea.setText("Reset done.");
         });
 
         Scene scene = new Scene(root, 900, 700);
-        primaryStage.setTitle("HR Network - Student Project");
+        primaryStage.setTitle("HR Network - Project");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
-    // --- МЕТОДИ ЗА РИСУВАНЕ (Draw) ---
+    // --- Generating Random Data ---
+    private void generateRandomData(int count) {
+        graph.nodes.clear();
+        graph.edges.clear();
+        Random rand = new Random();
+
+        // 1. Creating people
+        for (int i = 1; i <= count; i++) {
+            String name = "Employee " + i;
+            // For coordinates within canvas
+            double x = rand.nextDouble() * 800 + 50; 
+            double y = rand.nextDouble() * 500 + 50; 
+            
+            double activity = Math.round(rand.nextDouble() * 10.0 * 100.0) / 100.0; // Число 0-10
+            int interaction = rand.nextInt(100);
+            int projects = rand.nextInt(20) + 1;
+
+            graph.addNode(new Node(i, name, x, y, activity, interaction, projects));
+        }
+
+        // 2. Creating edges (Everybody gets 1-3 random connections)
+        for (Node n : graph.nodes) {
+            int connectionsCount = rand.nextInt(3) + 1; // Everybody gets at leasy 1 connection
+            for (int j = 0; j < connectionsCount; j++) {
+                Node randomTarget = graph.nodes.get(rand.nextInt(count));
+                
+                // Avoid self-loops
+                if (randomTarget != n) {
+                    graph.addEdge(n, randomTarget);
+                }
+            }
+        }
+    }
+
+    private void resetSelection() {
+        selected1 = null; selected2 = null; highlightedPath.clear();
+        for(Node n : graph.nodes) n.colorIndex = 0;
+    }
+
+    // --- Drawing ---
     private void draw() {
         GraphicsContext gc = canvas.getGraphicsContext2D();
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
-        // 1. Рисуване на връзките
-        gc.setLineWidth(2);
+        // drawing edges
+        gc.setLineWidth(1);
         for (Edge e : graph.edges) {
             if (isEdgeInPath(e)) {
                 gc.setStroke(Color.RED);
-                gc.setLineWidth(4);
+                gc.setLineWidth(3);
                 gc.strokeLine(e.source.x, e.source.y, e.target.x, e.target.y);
-                gc.setLineWidth(2);
+                gc.setLineWidth(1);
             } else {
                 gc.setStroke(Color.LIGHTGRAY);
                 gc.strokeLine(e.source.x, e.source.y, e.target.x, e.target.y);
             }
         }
 
-        // 2. Рисуване на хората
+        // Dranwing nodes
         for (Node n : graph.nodes) {
             boolean isSel = (n == selected1 || n == selected2);
             boolean isHigh = highlightedPath.contains(n);
@@ -175,13 +221,12 @@ public class Main extends Application {
 
     private void handleClick(double x, double y) {
         for (Node n : graph.nodes) {
-            // Проверка дали кликът е върху кръгчето (с радиус 20px)
             if (Math.abs(x - n.x) < 20 && Math.abs(y - n.y) < 20) {
                 if (selected1 == null) selected1 = n;
                 else if (selected2 == null && n != selected1) selected2 = n;
-                else { selected1 = n; selected2 = null; highlightedPath.clear(); } // Ресет ако кликнеш трети път
+                else { selected1 = n; selected2 = null; highlightedPath.clear(); }
                 
-                infoArea.setText("Избран: " + n.name + " (ID: " + n.id + ")");
+                infoArea.setText("Choosed: " + n.name + " (ID: " + n.id + ")");
                 return;
             }
         }
