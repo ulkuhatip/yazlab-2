@@ -11,11 +11,32 @@ public class Graph {
     }
 
     public void addEdge(Node s, Node t) {
+        // 1. Check if connection exists
+        for(Edge e : edges) {
+            if((e.source == s && e.target == t) || (e.source == t && e.target == s)) {
+                return; 
+            }
+        }
+        // 2. Add bidirectional connection
         edges.add(new Edge(s, t));
         edges.add(new Edge(t, s));
     }
 
-    //we can change the searching algo id to have better performance (plus for PRESENTATION )
+    // --- НОВО: МЕТОДИ ЗА ИЗТРИВАНЕ ---
+    
+    public void removeNode(Node n) {
+        // First, remove all edges connected to this node
+        edges.removeIf(e -> e.source == n || e.target == n);
+        // Then remove the node itself
+        nodes.remove(n);
+    }
+
+    public void removeEdge(Node s, Node t) {
+        // Remove both directions
+        edges.removeIf(e -> (e.source == s && e.target == t) || (e.source == t && e.target == s));
+    }
+    // ---------------------------------
+
     public Node getNodeById(int id) {
         for (Node n : nodes) {
             if (n.id == id) return n;
@@ -23,11 +44,10 @@ public class Graph {
         return null;
     }
 
-    // --- ALGORITHM: DIJKSTRA (Най-къс път) ---
+    // --- ALGORITHM: Dijkstra ---
     public List<Node> runDijkstra(Node start, Node end) {
-        // Ресет на стойностите
         for (Node n : nodes) {
-            n.minDistance = Double.POSITIVE_INFINITY;
+            n.minDistance = Double.MAX_VALUE;
             n.previous = null;
         }
         start.minDistance = 0;
@@ -37,15 +57,17 @@ public class Graph {
 
         while (!queue.isEmpty()) {
             Node u = queue.poll();
+            if (u == end) break; 
 
             for (Edge e : edges) {
                 if (e.source == u) {
                     Node v = e.target;
-                    double newDist = u.minDistance + e.cost;
-                    
-                    if (newDist < v.minDistance) {
+                    double weight = e.cost; 
+                    double distanceThroughU = u.minDistance + weight;
+
+                    if (distanceThroughU < v.minDistance) {
                         queue.remove(v);
-                        v.minDistance = newDist;
+                        v.minDistance = distanceThroughU;
                         v.previous = u;
                         queue.add(v);
                     }
@@ -53,45 +75,45 @@ public class Graph {
             }
         }
 
-        // Възстановяване на пътя
         List<Node> path = new ArrayList<>();
-        for (Node curr = end; curr != null; curr = curr.previous) {
-            path.add(curr);
+        for (Node target = end; target != null; target = target.previous) {
+            path.add(target);
         }
         Collections.reverse(path);
         
-        // Връщаме пътя само ако започва от нашия старт
-        if (!path.isEmpty() && path.get(0) == start) return path;
-        return new ArrayList<>();
+        if (!path.isEmpty() && path.get(0) != start) return new ArrayList<>(); 
+        return path;
     }
-
-    // --- ALGORITHM: WELSH-POWELL (Оцветяване) ---
+    
+    // --- ALGORITHM: Welsh-Powell ---
     public void runColoring() {
-        // Сортираме възлите по брой връзки (най-свързаните първи)
-        nodes.sort((n1, n2) -> Integer.compare(getDegree(n2), getDegree(n1)));
+        List<Node> sortedNodes = new ArrayList<>(nodes);
+        sortedNodes.sort((a, b) -> Integer.compare(getDegree(b), getDegree(a))); 
 
-        int color = 1;
-        for (Node n : nodes) {
-            if (n.colorIndex == 0) {
-                n.colorIndex = color;
-                // Оцветяваме всички несвързани с него със същия цвят
-                for (Node other : nodes) {
+        // Reset colors first
+        for(Node n : nodes) n.colorIndex = 0;
+
+        int colorIndex = 1;
+        for (Node n : sortedNodes) {
+            if (n.colorIndex == 0) { 
+                n.colorIndex = colorIndex;
+                for (Node other : sortedNodes) {
                     if (other.colorIndex == 0 && !areConnected(n, other)) {
-                        other.colorIndex = color;
+                        boolean safe = true;
+                        for (Node existing : sortedNodes) {
+                            if (existing.colorIndex == colorIndex && areConnected(existing, other)) {
+                                safe = false; 
+                                break;
+                            }
+                        }
+                        if (safe) other.colorIndex = colorIndex;
                     }
                 }
-                color++;
+                colorIndex++; 
             }
         }
     }
-
-    // --- ALGORITHM: CENTRALITY (Лидери) ---
-    public List<Node> getTopCentrality() {
-        List<Node> sorted = new ArrayList<>(nodes);
-        sorted.sort((n1, n2) -> Integer.compare(getDegree(n2), getDegree(n1)));
-        return sorted;
-    }
-
+    
     public int getDegree(Node n) {
         int count = 0;
         for (Edge e : edges) {
@@ -100,10 +122,16 @@ public class Graph {
         return count;
     }
 
-    private boolean areConnected(Node n1, Node n2) {
+    private boolean areConnected(Node a, Node b) {
         for (Edge e : edges) {
-            if ((e.source == n1 && e.target == n2) || (e.source == n2 && e.target == n1)) return true;
+            if ((e.source == a && e.target == b) || (e.source == b && e.target == a)) return true;
         }
         return false;
+    }
+
+    public List<Node> getTopCentrality() {
+        List<Node> top = new ArrayList<>(nodes);
+        top.sort((a, b) -> Integer.compare(getDegree(b), getDegree(a)));
+        return top;
     }
 }

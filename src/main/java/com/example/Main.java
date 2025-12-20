@@ -1,18 +1,23 @@
 package com.example;
 
 import javafx.application.Application;
+import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.input.MouseButton;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random; 
 
 public class Main extends Application {
@@ -20,7 +25,7 @@ public class Main extends Application {
     private Canvas canvas = new Canvas(900, 600);
     private TextArea infoArea = new TextArea();
     
-    // Променливи за селекция и път
+    // Selection variables
     private Node selected1 = null;
     private Node selected2 = null;
     private List<Node> highlightedPath = new ArrayList<>();
@@ -31,7 +36,6 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        // --- Load default data if exists ---
         File defaultFile = new File("data.json");
         if(defaultFile.exists()) {
             JsonLoader.load("data.json", graph);
@@ -39,29 +43,23 @@ public class Main extends Application {
 
         BorderPane root = new BorderPane();
 
-        // --- Menu ---
+        // --- MENU BAR ---
         MenuBar menuBar = new MenuBar();
-        
-        // Menu File
         Menu menuFile = new Menu("File");
         MenuItem itemOpen = new MenuItem("Open JSON...");
         MenuItem itemSave = new MenuItem("Save JSON...");
         MenuItem itemExit = new MenuItem("Exit");
-        
-        // Menu Tools
         Menu menuTools = new Menu("Tools");
-        MenuItem itemGenerate = new MenuItem("Generate 100 Random People");
+        MenuItem itemGenerate = new MenuItem("Generate Random Data...");
 
-        // --- Menubar ---
-
+        // Actions
         itemOpen.setOnAction(e -> {
             FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Choose JSON File");
             fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
             File file = fileChooser.showOpenDialog(primaryStage);
             if (file != null) {
                 JsonLoader.load(file.getAbsolutePath(), graph);
-                infoArea.setText("Load File: " + file.getName());
+                infoArea.setText("Loaded file: " + file.getName());
                 resetSelection();
                 draw();
             }
@@ -69,20 +67,18 @@ public class Main extends Application {
 
         itemSave.setOnAction(e -> {
             FileChooser fileChooser = new FileChooser();
-            fileChooser.setTitle("Safe JSON File");
-            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
             fileChooser.setInitialFileName("data.json");
+            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
             File file = fileChooser.showSaveDialog(primaryStage);
             if (file != null) {
                 JsonLoader.save(file.getAbsolutePath(), graph);
-                infoArea.setText("File is load successfully!");
+                infoArea.setText("File is successfully saved!");
             }
         });
 
-        // generating 100 new people
         itemGenerate.setOnAction(e -> {
-            generateRandomData(100); // Create 100 random nodes and edges
-            infoArea.setText("100 people ramdomly generated. Press save to keep the data.");
+            generateRandomData(100);
+            infoArea.setText("100 new employees have been generated.");
             resetSelection();
             draw();
         });
@@ -91,98 +87,237 @@ public class Main extends Application {
         
         menuFile.getItems().addAll(itemOpen, itemSave, new SeparatorMenuItem(), itemExit);
         menuTools.getItems().add(itemGenerate);
-        
         menuBar.getMenus().addAll(menuFile, menuTools);
         root.setTop(menuBar);
 
-        // --- Center and Buttons ---
+        // --- CENTER ---
         root.setCenter(canvas);
         
-        HBox controls = new HBox(10);
-        Button btnDijkstra = new Button("Dijkstra (Path)");
-        Button btnColor = new Button("Coloring");
-        Button btnCentrality = new Button("Top Leaders");
-        Button btnReset = new Button("Reset View");
-
-        controls.getChildren().addAll(btnDijkstra, btnColor, btnCentrality, btnReset);
+        // --- BUTTONS (Bottom) ---
+        VBox bottomContainer = new VBox(10);
+        bottomContainer.setPadding(new Insets(10));
         
-        BorderPane bottomPanel = new BorderPane();
-        bottomPanel.setTop(controls); 
-        infoArea.setPrefHeight(100);
-        bottomPanel.setCenter(infoArea);
-        root.setBottom(bottomPanel);
+        // Row 1: Algorithms
+        HBox algoControls = new HBox(10);
+        Button btnDijkstra = new Button("Dijkstra (shortest path)");
+        Button btnColor = new Button("Coloring");
+        Button btnCentrality = new Button("Liders");
+        Button btnReset = new Button("Clear");
+        algoControls.getChildren().addAll(btnDijkstra, btnColor, btnCentrality, btnReset);
+
+        // Row 2: Editing Edges (НОВО!)
+        HBox editControls = new HBox(10);
+        Button btnAddEdge = new Button("➕ Connect the selected people");
+        Button btnRemoveEdge = new Button("❌ Remove the selected connection");
+        Label lblHint = new Label("(Choose two people with left click and then use the buttons!)");
+        editControls.getChildren().addAll(btnAddEdge, btnRemoveEdge, lblHint);
+
+        bottomContainer.getChildren().addAll(algoControls, editControls, infoArea);
+        infoArea.setPrefHeight(80);
+        root.setBottom(bottomContainer);
 
         draw();
 
-        // --- Events ---
+        // --- MOUSE EVENTS & CONTEXT MENU (НОВО!) ---
+        
+        // Context Menu (Right Click)
+        ContextMenu contextMenu = new ContextMenu();
+        MenuItem itemAddNode = new MenuItem("Add new person");
+        MenuItem itemEditNode = new MenuItem("Edit data");
+        MenuItem itemDeleteNode = new MenuItem("Delete data");
+        
+        contextMenu.getItems().addAll(itemAddNode, itemEditNode, itemDeleteNode);
+
+        // Logic for Right Click
+        canvas.setOnContextMenuRequested(e -> {
+            Node clickedNode = findNodeAt(e.getX(), e.getY());
+            
+            if (clickedNode != null) {
+                // Clicked on a Node -> Show Edit/Delete, Hide Add
+                itemAddNode.setVisible(false);
+                itemEditNode.setVisible(true);
+                itemDeleteNode.setVisible(true);
+                
+                itemEditNode.setOnAction(ev -> openNodeDialog(clickedNode, false));
+                itemDeleteNode.setOnAction(ev -> {
+                    graph.removeNode(clickedNode);
+                    if(selected1 == clickedNode) selected1 = null;
+                    if(selected2 == clickedNode) selected2 = null;
+                    draw();
+                    infoArea.setText("Deleted: " + clickedNode.name);
+                });
+            } else {
+                // Clicked on Empty Space -> Show Add, Hide Edit/Delete
+                itemAddNode.setVisible(true);
+                itemEditNode.setVisible(false);
+                itemDeleteNode.setVisible(false);
+                
+                itemAddNode.setOnAction(ev -> {
+                    Node newNode = new Node(getNextId(), "New User", e.getX(), e.getY(), 5.0, 50, 5);
+                    openNodeDialog(newNode, true); // True means "isNew"
+                });
+            }
+            contextMenu.show(canvas, e.getScreenX(), e.getScreenY());
+        });
+
+        // Left Click Logic
         canvas.setOnMouseClicked(e -> {
-            handleClick(e.getX(), e.getY());
-            draw();
+            contextMenu.hide(); // Hide menu if visible
+            if (e.getButton() == MouseButton.PRIMARY) {
+                handleClick(e.getX(), e.getY());
+                draw();
+            }
+        });
+
+        // --- BUTTON ACTIONS ---
+        
+        // Add Edge
+        btnAddEdge.setOnAction(e -> {
+            if (selected1 != null && selected2 != null) {
+                graph.addEdge(selected1, selected2);
+                draw();
+                infoArea.setText("Connected: " + selected1.name + " и " + selected2.name);
+            } else {
+                infoArea.setText("Error: Please select two people to connect!");
+            }
+        });
+
+        // Remove Edge
+        btnRemoveEdge.setOnAction(e -> {
+            if (selected1 != null && selected2 != null) {
+                graph.removeEdge(selected1, selected2);
+                draw();
+                infoArea.setText("Edge removed between: " + selected1.name + " and " + selected2.name);
+            } else {
+                infoArea.setText("select two people to remove an edge!");
+            }
         });
 
         btnDijkstra.setOnAction(e -> {
             if (selected1 != null && selected2 != null) {
                 highlightedPath = graph.runDijkstra(selected1, selected2);
-                infoArea.setText(highlightedPath.isEmpty() ? "No connection between " + selected1.name + " and " + selected2.name + "." : "Route found: " + highlightedPath.size() + " steps.");
+                infoArea.setText(highlightedPath.isEmpty() ? "No road found." : "Found road: " + highlightedPath.size() + " steps.");
                 draw();
-            } else infoArea.setText("Please choose two people!");
+            } else infoArea.setText("Please select two nodes!");
         });
 
         btnColor.setOnAction(e -> {
             graph.runColoring();
             draw();
-            infoArea.setText("Coloring done!");
+            infoArea.setText("Graph has been colored!");
         });
 
         btnCentrality.setOnAction(e -> {
             List<Node> top = graph.getTopCentrality();
             if (!top.isEmpty()) {
-                infoArea.setText("Lider: " + top.get(0).name + " (" + graph.getDegree(top.get(0)) + " edges)");
+                infoArea.setText("Lider: " + top.get(0).name + " (" + graph.getDegree(top.get(0)) + " connections)");
             }
         });
 
         btnReset.setOnAction(e -> {
             resetSelection();
             draw();
-            infoArea.setText("Reset done.");
+            infoArea.setText("The view has been reset.");
         });
 
-        Scene scene = new Scene(root, 900, 700);
-        primaryStage.setTitle("HR Network - Project");
+        Scene scene = new Scene(root, 900, 750); // Increased height for new buttons
+        primaryStage.setTitle("HR Network - Management System");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
-    // --- Generating Random Data ---
+    // --- DIALOG FOR ADD/EDIT (НОВО!) ---
+    private void openNodeDialog(Node node, boolean isNew) {
+        Dialog<Node> dialog = new Dialog<>();
+        dialog.setTitle(isNew ? "Add new person" : "Edit data");
+        dialog.setHeaderText("Enter person data:");
+
+        // Set the button types
+        ButtonType loginButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(loginButtonType, ButtonType.CANCEL);
+
+        // Create the labels and fields
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 150, 10, 10));
+
+        TextField nameField = new TextField(node.name);
+        TextField actField = new TextField(String.valueOf(node.activity));
+        TextField interField = new TextField(String.valueOf(node.interaction));
+        TextField projField = new TextField(String.valueOf(node.projects));
+
+        grid.add(new Label("Име:"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Activity (0-10):"), 0, 1);
+        grid.add(actField, 1, 1);
+        grid.add(new Label("Interactions:"), 0, 2);
+        grid.add(interField, 1, 2);
+        grid.add(new Label("Projects:"), 0, 3);
+        grid.add(projField, 1, 3);
+
+        dialog.getDialogPane().setContent(grid);
+
+        // Convert the result
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == loginButtonType) {
+                try {
+                    node.name = nameField.getText();
+                    node.activity = Double.parseDouble(actField.getText());
+                    node.interaction = Integer.parseInt(interField.getText());
+                    node.projects = Integer.parseInt(projField.getText());
+                    return node;
+                } catch (Exception ex) {
+                    return null; // Error in parsing
+                }
+            }
+            return null;
+        });
+
+        Optional<Node> result = dialog.showAndWait();
+
+        result.ifPresent(updatedNode -> {
+            if (isNew) {
+                graph.addNode(updatedNode);
+                infoArea.setText("New added: " + updatedNode.name);
+            } else {
+                infoArea.setText("Edited: " + updatedNode.name);
+            }
+            draw();
+        });
+    }
+
+    // --- HELPERS ---
+    private Node findNodeAt(double x, double y) {
+        for (Node n : graph.nodes) {
+            if (Math.abs(x - n.x) < 20 && Math.abs(y - n.y) < 20) {
+                return n;
+            }
+        }
+        return null;
+    }
+
+    private int getNextId() {
+        int max = 0;
+        for (Node n : graph.nodes) if(n.id > max) max = n.id;
+        return max + 1;
+    }
+
     private void generateRandomData(int count) {
         graph.nodes.clear();
         graph.edges.clear();
         Random rand = new Random();
-
-        // 1. Creating people
         for (int i = 1; i <= count; i++) {
             String name = "Employee " + i;
-            // For coordinates within canvas
             double x = rand.nextDouble() * 800 + 50; 
             double y = rand.nextDouble() * 500 + 50; 
-            
-            double activity = Math.round(rand.nextDouble() * 10.0 * 100.0) / 100.0; // Число 0-10
-            int interaction = rand.nextInt(100);
-            int projects = rand.nextInt(20) + 1;
-
-            graph.addNode(new Node(i, name, x, y, activity, interaction, projects));
+            graph.addNode(new Node(i, name, x, y, rand.nextDouble()*10, rand.nextInt(100), rand.nextInt(20)));
         }
-
-        // 2. Creating edges (Everybody gets 1-3 random connections)
         for (Node n : graph.nodes) {
-            int connectionsCount = rand.nextInt(3) + 1; // Everybody gets at leasy 1 connection
-            for (int j = 0; j < connectionsCount; j++) {
-                Node randomTarget = graph.nodes.get(rand.nextInt(count));
-                
-                // Avoid self-loops
-                if (randomTarget != n) {
-                    graph.addEdge(n, randomTarget);
-                }
+            int connections = rand.nextInt(3) + 1; 
+            for (int j = 0; j < connections; j++) {
+                Node target = graph.nodes.get(rand.nextInt(count));
+                if (target != n) graph.addEdge(n, target);
             }
         }
     }
@@ -192,12 +327,10 @@ public class Main extends Application {
         for(Node n : graph.nodes) n.colorIndex = 0;
     }
 
-    // --- Drawing ---
     private void draw() {
         GraphicsContext gc = canvas.getGraphicsContext2D();
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
-        // drawing edges
         gc.setLineWidth(1);
         for (Edge e : graph.edges) {
             if (isEdgeInPath(e)) {
@@ -211,7 +344,6 @@ public class Main extends Application {
             }
         }
 
-        // Dranwing nodes
         for (Node n : graph.nodes) {
             boolean isSel = (n == selected1 || n == selected2);
             boolean isHigh = highlightedPath.contains(n);
@@ -220,15 +352,12 @@ public class Main extends Application {
     }
 
     private void handleClick(double x, double y) {
-        for (Node n : graph.nodes) {
-            if (Math.abs(x - n.x) < 20 && Math.abs(y - n.y) < 20) {
-                if (selected1 == null) selected1 = n;
-                else if (selected2 == null && n != selected1) selected2 = n;
-                else { selected1 = n; selected2 = null; highlightedPath.clear(); }
-                
-                infoArea.setText("Choosed: " + n.name + " (ID: " + n.id + ")");
-                return;
-            }
+        Node clicked = findNodeAt(x, y);
+        if (clicked != null) {
+            if (selected1 == null) selected1 = clicked;
+            else if (selected2 == null && clicked != selected1) selected2 = clicked;
+            else { selected1 = clicked; selected2 = null; highlightedPath.clear(); }
+            infoArea.setText("Selected: " + clicked.name);
         }
     }
 
