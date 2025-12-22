@@ -28,6 +28,10 @@ public class Main extends Application {
     // Selection variables
     private Node selected1 = null;
     private Node selected2 = null;
+    // --- Connect Mode & Ghost Line ---
+    private boolean isConnectMode = false;
+    private double mouseX, mouseY;
+
     
     // List to store nodes that should be highlighted (Path or Search Result)
     private List<Node> highlightedNodes = new ArrayList<>();
@@ -101,11 +105,20 @@ public class Main extends Application {
         menuBar.getMenus().addAll(menuFile, menuTools);
         root.setTop(menuBar);
 
+        canvas.setOnMouseMoved(e -> {
+            if (isConnectMode && selected1 != null) {
+                mouseX = e.getX();
+                mouseY = e.getY();
+                draw();
+            }
+        });
+
+
         // --- 2. CENTER (Canvas) ---
         root.setCenter(canvas);
         // Make canvas responsive
         canvas.widthProperty().bind(root.widthProperty().subtract(250)); // subtract right panel width
-        canvas.heightProperty().bind(root.heightProperty().subtract(200)); // subtract bottom panel height
+        canvas.heightProperty().bind(root.heightProperty().subtract(200));
         
         // Redraw when resized
         canvas.widthProperty().addListener(evt -> draw());
@@ -256,11 +269,9 @@ public class Main extends Application {
 
         // Edit Edges
         btnAddEdge.setOnAction(e -> {
-            if (selected1 != null && selected2 != null) {
-                graph.addEdge(selected1, selected2);
-                draw();
-                infoArea.setText("Connected: " + selected1.name + " & " + selected2.name);
-            } else infoArea.setText("Select 2 people first.");
+            resetSelection();
+            isConnectMode = true;
+            infoArea.setText("Connect mode: select first person");
         });
 
         btnRemoveEdge.setOnAction(e -> {
@@ -325,34 +336,70 @@ public class Main extends Application {
         draw(); // Initial draw
 
         Scene scene = new Scene(root, 1000, 750);
+        scene.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                resetConnectMode();
+                draw();
+            }
+        });
         primaryStage.setTitle("HR Social Network Analysis");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
-    // --- HELPERS ---
+// --- HELPERS ---
 
     private void handleClick(double x, double y) {
         Node clicked = findNodeAt(x, y);
-        if (clicked != null) {
-            // Logic for selecting 2 nodes
-            if (selected1 == null) {
-                selected1 = clicked;
-            } else if (selected2 == null && clicked != selected1) {
-                selected2 = clicked;
-            } else {
-                // If 2 are already selected, start over
-                selected1 = clicked;
-                selected2 = null;
-                highlightedNodes.clear();
+
+        // Boş alana tıklandıysa → iptal
+        if (clicked == null) {
+            if (isConnectMode) {
+                resetConnectMode();
+                infoArea.setText("Connect mode cancelled.");
+                draw();
             }
+            clearNodeInfo();
+            return;
+        }
+
+        // NORMAL MODE → sadece seçim
+        if (!isConnectMode) {
+            selected1 = clicked;
+            selected2 = null;
+            highlightedNodes.clear();
             showNodeInfo(clicked);
             infoArea.setText("Selected: " + clicked.name);
-        } else {
-            // Clicked empty space
-            clearNodeInfo();
+            return;
         }
+
+        // CONNECT MODE
+        if (selected1 == null) {
+            selected1 = clicked;
+            showNodeInfo(clicked);
+            infoArea.setText("First selected: " + clicked.name);
+            return;
+        }
+
+        // Aynı node'a tıklanırsa → yok say
+        if (clicked == selected1) {
+            infoArea.setText("Select a different person to connect.");
+            return;
+        }
+
+        // Gerçek bağlantı
+        graph.addEdge(selected1, clicked);
+        infoArea.setText("Connected: " + selected1.name + " & " + clicked.name);
+        resetConnectMode();
+        draw();
     }
+
+    private void resetConnectMode() {
+        isConnectMode = false;
+        selected1 = null;
+        selected2 = null;
+    }
+
 
     private void showNodeInfo(Node n) {
         lblTitle.setText("Employee Info");
@@ -486,7 +533,23 @@ public class Main extends Application {
             boolean isHigh = highlightedNodes.contains(n);
             n.draw(gc, isSel, isHigh);
         }
+
+        // 👻 GHOST LINE 
+        if (isConnectMode && selected1 != null) {
+            gc.save();
+            gc.setStroke(Color.GRAY);
+            gc.setLineWidth(1.5);
+            gc.setLineDashes(10);
+            gc.strokeLine(
+                selected1.x,
+                selected1.y,
+                mouseX,
+                mouseY
+            );
+            gc.restore();
+        }
     }
+
 
     private boolean isEdgeInPath(Edge e) {
         if (highlightedNodes.size() < 2) return false;
