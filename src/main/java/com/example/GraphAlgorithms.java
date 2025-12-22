@@ -185,4 +185,31 @@ public class GraphAlgorithms {
         if (!path.isEmpty() && path.get(0) != start) return new ArrayList<>();
         return path;
     }
+
+    public static int countAndColorComponents(Graph graph) {
+        List<Node> visitedAll = new ArrayList<>();
+        int count = 0;
+        int colorIndex = 1;
+
+        // Reset colors
+        for(Node n : graph.nodes) n.colorIndex = 0;
+
+        for (Node n : graph.nodes) {
+            if (!visitedAll.contains(n)) {
+                count++;
+                
+                // Find island via BFS
+                List<Node> island = runBFS(graph, n);
+                visitedAll.addAll(island);
+
+                // Color island
+                for(Node islandMember : island) {
+                    islandMember.colorIndex = (colorIndex % 5) + 1; 
+                }
+                
+                colorIndex++; 
+            }
+        }
+        return count;
+    }
 }

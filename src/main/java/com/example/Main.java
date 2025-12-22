@@ -1,7 +1,10 @@
 package com.example;
 
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.geometry.Insets;
+import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -14,17 +17,19 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.util.Duration;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Random; 
+import java.util.Random;
 
 public class Main extends Application {
     private Graph graph = new Graph();
     private Canvas canvas = new Canvas(900, 600);
     private TextArea infoArea = new TextArea();
-    
+
     // Selection variables
     private Node selected1 = null;
     private Node selected2 = null;
@@ -33,6 +38,7 @@ public class Main extends Application {
     private double mouseX, mouseY;
 
     
+
     // List to store nodes that should be highlighted (Path or Search Result)
     private List<Node> highlightedNodes = new ArrayList<>();
 
@@ -52,7 +58,7 @@ public class Main extends Application {
     public void start(Stage primaryStage) {
         // Load default file if exists
         File defaultFile = new File("data.json");
-        if(defaultFile.exists()) {
+        if (defaultFile.exists()) {
             JsonLoader.load("data.json", graph);
         }
 
@@ -92,14 +98,14 @@ public class Main extends Application {
         });
 
         itemGenerate.setOnAction(e -> {
-            generateRandomData(20);
-            infoArea.setText("Generated 20 random employees.");
+            generateRandomData(50); // Generating more people to make comparison interesting
+            infoArea.setText("Generated 50 random employees. Try 'Compare Algorithms' now!");
             resetSelection();
             draw();
         });
 
         itemExit.setOnAction(e -> System.exit(0));
-        
+
         menuFile.getItems().addAll(itemOpen, itemSave, new SeparatorMenuItem(), itemExit);
         menuTools.getItems().add(itemGenerate);
         menuBar.getMenus().addAll(menuFile, menuTools);
@@ -118,8 +124,8 @@ public class Main extends Application {
         root.setCenter(canvas);
         // Make canvas responsive
         canvas.widthProperty().bind(root.widthProperty().subtract(250)); // subtract right panel width
-        canvas.heightProperty().bind(root.heightProperty().subtract(200));
-        
+        canvas.heightProperty().bind(root.heightProperty().subtract(200)); // subtract bottom panel height
+
         // Redraw when resized
         canvas.widthProperty().addListener(evt -> draw());
         canvas.heightProperty().addListener(evt -> draw());
@@ -136,11 +142,16 @@ public class Main extends Application {
         infoPanel.add(lblTitle, 0, 0, 2, 1);
         infoPanel.add(new Separator(), 0, 1, 2, 1);
 
-        infoPanel.add(new Label("ID:"), 0, 2);          infoPanel.add(lblId, 1, 2);
-        infoPanel.add(new Label("Name:"), 0, 3);        infoPanel.add(lblName, 1, 3);
-        infoPanel.add(new Label("Activity:"), 0, 4);    infoPanel.add(lblActivity, 1, 4);
-        infoPanel.add(new Label("Interactions:"), 0, 5);infoPanel.add(lblInteraction, 1, 5);
-        infoPanel.add(new Label("Projects:"), 0, 6);    infoPanel.add(lblProjects, 1, 6);
+        infoPanel.add(new Label("ID:"), 0, 2);
+        infoPanel.add(lblId, 1, 2);
+        infoPanel.add(new Label("Name:"), 0, 3);
+        infoPanel.add(lblName, 1, 3);
+        infoPanel.add(new Label("Activity:"), 0, 4);
+        infoPanel.add(lblActivity, 1, 4);
+        infoPanel.add(new Label("Interactions:"), 0, 5);
+        infoPanel.add(lblInteraction, 1, 5);
+        infoPanel.add(new Label("Projects:"), 0, 6);
+        infoPanel.add(lblProjects, 1, 6);
 
         root.setRight(infoPanel);
 
@@ -149,25 +160,29 @@ public class Main extends Application {
         bottomContainer.setPadding(new Insets(10));
         bottomContainer.setStyle("-fx-background-color: #e0e0e0;");
 
-        // Row 1: Search & Pathfinding (BFS, DFS, Dijkstra, A*)
+        // Row 1: Search & Pathfinding
         HBox row1 = new HBox(10);
-        Button btnBFS = new Button("BFS (Reach)");
-        Button btnDFS = new Button("DFS (Reach)");
-        Button btnDijkstra = new Button("Dijkstra (Path)");
-        Button btnAStar = new Button("A* (Path)");
-        row1.getChildren().addAll(new Label("Search:"), btnBFS, btnDFS, btnDijkstra, btnAStar);
+        Button btnBFS = new Button("BFS");
+        Button btnDFS = new Button("DFS");
+        Button btnDijkstra = new Button("Dijkstra (Anim)");
+        Button btnAStar = new Button("A* (Anim)");
+        // 🔥 NEW FEATURE 1: Comparison Button
+        Button btnCompare = new Button("⚡ Compare All"); 
+        btnCompare.setStyle("-fx-background-color: #ffcc00; -fx-text-fill: black; -fx-font-weight: bold;");
+        
+        row1.getChildren().addAll(new Label("Search:"), btnBFS, btnDFS, btnDijkstra, btnAStar, btnCompare);
 
-        // Row 2: Analysis (Components, Color, Centrality)
+        // Row 2: Analysis
         HBox row2 = new HBox(10);
-        Button btnComponents = new Button("Count Components");
-        Button btnColor = new Button("Coloring (Welsh-Powell)");
+        Button btnComponents = new Button("Islands (Color)");
+        Button btnColor = new Button("Coloring (WP)");
         Button btnCentrality = new Button("Top Leaders");
         Button btnReset = new Button("Reset View");
         row2.getChildren().addAll(new Label("Analyze:"), btnComponents, btnColor, btnCentrality, btnReset);
 
-        // Row 3: Editing (Add/Remove Edge)
+        // Row 3: Editing
         HBox row3 = new HBox(10);
-        Button btnAddEdge = new Button("➕ Connect Selected");
+        Button btnAddEdge = new Button("➕ Connect");
         Button btnRemoveEdge = new Button("❌ Disconnect");
         Label lblHint = new Label("(Left-click 2 nodes to select)");
         row3.getChildren().addAll(new Label("Edit:"), btnAddEdge, btnRemoveEdge, lblHint);
@@ -176,7 +191,7 @@ public class Main extends Application {
         infoArea.setPrefHeight(60);
         root.setBottom(bottomContainer);
 
-        // --- 5. EVENT HANDLERS (Buttons calling GraphAlgorithms) ---
+        // --- 5. EVENT HANDLERS ---
 
         // BFS
         btnBFS.setOnAction(e -> {
@@ -196,28 +211,84 @@ public class Main extends Application {
             } else infoArea.setText("Select 1 person to start DFS.");
         });
 
-        // Dijkstra
+        // Dijkstra (with Animation)
         btnDijkstra.setOnAction(e -> {
             if (selected1 != null && selected2 != null) {
-                highlightedNodes = GraphAlgorithms.runDijkstra(graph, selected1, selected2);
-                infoArea.setText(highlightedNodes.isEmpty() ? "No path found." : "Dijkstra Path: " + highlightedNodes.size() + " steps.");
-                draw();
+                List<Node> path = GraphAlgorithms.runDijkstra(graph, selected1, selected2);
+                if (path.isEmpty()) {
+                    infoArea.setText("No path found.");
+                    highlightedNodes.clear();
+                    draw();
+                } else {
+                    infoArea.setText("Dijkstra Path: " + path.size() + " steps. Animating...");
+                    // 🔥 NEW FEATURE 2: Animation call
+                    animatePath(path); 
+                }
             } else infoArea.setText("Select 2 people for Dijkstra.");
         });
 
-        // A* (A-Star)
+        // A* (with Animation)
         btnAStar.setOnAction(e -> {
             if (selected1 != null && selected2 != null) {
-                highlightedNodes = GraphAlgorithms.runAStar(graph, selected1, selected2);
-                infoArea.setText(highlightedNodes.isEmpty() ? "No path found." : "A* Path: " + highlightedNodes.size() + " steps.");
-                draw();
+                List<Node> path = GraphAlgorithms.runAStar(graph, selected1, selected2);
+                if (path.isEmpty()) {
+                    infoArea.setText("No path found.");
+                    highlightedNodes.clear();
+                    draw();
+                } else {
+                    infoArea.setText("A* Path: " + path.size() + " steps. Animating...");
+                    // 🔥 NEW FEATURE 2: Animation call
+                    animatePath(path); 
+                }
             } else infoArea.setText("Select 2 people for A*.");
         });
 
-        // Components
+        // ⚡ NEW FEATURE 1: Algorithm Comparison Race
+        btnCompare.setOnAction(e -> {
+            if (selected1 != null && selected2 != null) {
+                StringBuilder result = new StringBuilder("🏆 Algorithm Performance Race 🏆\n");
+                result.append("Route: ").append(selected1.name).append(" ➔ ").append(selected2.name).append("\n\n");
+
+                // 1. Measure Dijkstra
+                long startD = System.nanoTime();
+                List<Node> pathD = GraphAlgorithms.runDijkstra(graph, selected1, selected2);
+                long endD = System.nanoTime();
+                double timeD = (endD - startD) / 1_000_000.0; // Convert to ms
+                result.append(String.format("🔹 Dijkstra:\n   Time: %.4f ms\n   Steps: %d\n\n", timeD, pathD.size()));
+
+                // 2. Measure A*
+                long startA = System.nanoTime();
+                List<Node> pathA = GraphAlgorithms.runAStar(graph, selected1, selected2);
+                long endA = System.nanoTime();
+                double timeA = (endA - startA) / 1_000_000.0;
+                result.append(String.format("🔸 A* (A-Star):\n   Time: %.4f ms\n   Steps: %d\n\n", timeA, pathA.size()));
+
+                // 3. Measure BFS (Reachability check)
+                long startBFS = System.nanoTime();
+                List<Node> reachBFS = GraphAlgorithms.runBFS(graph, selected1);
+                boolean canReach = reachBFS.contains(selected2);
+                long endBFS = System.nanoTime();
+                double timeBFS = (endBFS - startBFS) / 1_000_000.0;
+                result.append(String.format("🔹 BFS (Scan):\n   Time: %.4f ms\n   Reachable: %s\n", timeBFS, canReach ? "YES" : "NO"));
+
+                // Show Alert
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle("Performance Benchmark");
+                alert.setHeaderText("Race Results");
+                alert.setContentText(result.toString());
+                alert.showAndWait();
+
+            } else {
+                infoArea.setText("Select 2 people to compare algorithms!");
+            }
+        });
+
+        // Components (Islands with Coloring)
         btnComponents.setOnAction(e -> {
-            int count = GraphAlgorithms.countConnectedComponents(graph);
-            infoArea.setText("Number of disconnected communities (Islands): " + count);
+            // Uses the new countAndColor method
+            int count = GraphAlgorithms.countAndColorComponents(graph);
+            infoArea.setText("Found " + count + " disconnected communities (Islands). They are now colored.");
+            draw();
         });
 
         // Coloring
@@ -227,36 +298,22 @@ public class Main extends Application {
             infoArea.setText("Graph colored using Welsh-Powell algorithm.");
         });
 
-        // Centrality
-      // Centrality (Top 5 Leaders with Colors)
+        // Centrality (Top 5 Colored)
         btnCentrality.setOnAction(e -> {
-            // 1. Взимаме списъка, сортиран по важност
             List<Node> top = GraphAlgorithms.getTopCentrality(graph);
-            
-            // 2. Изчистваме старите цветове на всички
-            for(Node n : graph.nodes) n.colorIndex = 0;
+            // Clear old colors
+            for (Node n : graph.nodes) n.colorIndex = 0;
 
             if (!top.isEmpty()) {
                 StringBuilder sb = new StringBuilder("Top 5 Influencers:\n");
-                
-                // 3. Взимаме само първите 5 (или по-малко, ако нямаме 5 човека)
                 int count = Math.min(5, top.size());
-                
-                for(int i = 0; i < count; i++) {
+                for (int i = 0; i < count; i++) {
                     Node n = top.get(i);
-                    
-                    // 4. Задаваме цвят според ранга (1=Orange, 2=Cyan, 3=Magenta...)
-                    // Това използва логиката, която вече имаш в Node.java
-                    n.colorIndex = i + 1; 
-                    
-                    sb.append(String.format("%d. %s (%d connections)\n", i+1, n.name, graph.getDegree(n)));
+                    n.colorIndex = i + 1; // Assign color based on rank
+                    sb.append(String.format("%d. %s (%d connections)\n", i + 1, n.name, graph.getDegree(n)));
                 }
                 infoArea.setText(sb.toString());
-                
-                // 5. Прерисуваме екрана, за да се видят цветовете
-                draw();
-            } else {
-                infoArea.setText("No data to analyze.");
+                draw(); // Redraw to show colors
             }
         });
 
@@ -282,9 +339,8 @@ public class Main extends Application {
             } else infoArea.setText("Select 2 people first.");
         });
 
-
         // --- 6. MOUSE & CONTEXT MENU ---
-        
+
         ContextMenu contextMenu = new ContextMenu();
         MenuItem itemAddNode = new MenuItem("Add Person Here");
         MenuItem itemEditNode = new MenuItem("Edit Person");
@@ -294,9 +350,8 @@ public class Main extends Application {
         // Right Click Logic
         canvas.setOnContextMenuRequested(e -> {
             Node clickedNode = findNodeAt(e.getX(), e.getY());
-            
+
             if (clickedNode != null) {
-                // Clicked on Node
                 itemAddNode.setVisible(false);
                 itemEditNode.setVisible(true);
                 itemDeleteNode.setVisible(true);
@@ -304,14 +359,13 @@ public class Main extends Application {
                 itemEditNode.setOnAction(ev -> openNodeDialog(clickedNode, false));
                 itemDeleteNode.setOnAction(ev -> {
                     graph.removeNode(clickedNode);
-                    if(selected1 == clickedNode) selected1 = null;
-                    if(selected2 == clickedNode) selected2 = null;
+                    if (selected1 == clickedNode) selected1 = null;
+                    if (selected2 == clickedNode) selected2 = null;
                     clearNodeInfo();
                     draw();
                     infoArea.setText("Deleted: " + clickedNode.name);
                 });
             } else {
-                // Clicked on Empty Space
                 itemAddNode.setVisible(true);
                 itemEditNode.setVisible(false);
                 itemDeleteNode.setVisible(false);
@@ -324,46 +378,78 @@ public class Main extends Application {
             contextMenu.show(canvas, e.getScreenX(), e.getScreenY());
         });
 
-        // Left Click Logic
-        canvas.setOnMouseClicked(e -> {
-            contextMenu.hide();
-            if (e.getButton() == MouseButton.PRIMARY) {
-                handleClick(e.getX(), e.getY());
-                draw();
+            // Left Click Logic
+            canvas.setOnMouseClicked(e -> {
+                contextMenu.hide();
+                if (e.getButton() == MouseButton.PRIMARY) {
+                    handleClick(e.getX(), e.getY());
+                    draw();
+                }
+            });
+
+            // 🔥 NEW FEATURE 3: Mouse Hover Effect (Tooltip/Cursor)
+            canvas.setOnMouseMoved(e -> {
+                Node hovered = findNodeAt(e.getX(), e.getY());
+                if (hovered != null) {
+                    canvas.setCursor(Cursor.HAND);
+                    // Optional: Show quick info in bottom area or label
+                    // infoArea.setText("Hovering: " + hovered.name); 
+                } else {
+                    canvas.setCursor(Cursor.DEFAULT);
+                }
+            });
+
+            draw(); // Initial draw
+
+            Scene scene = new Scene(root, 1000, 750);
+            scene.setOnKeyPressed(e -> {
+                if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                    resetConnectMode();
+                    draw();
+                }
+            });
+            primaryStage.setTitle("HR Social Network Analysis");
+            primaryStage.setScene(scene);
+            primaryStage.show();
+        }
+
+        private void animatePath(List<Node> path) {
+            if (path.isEmpty()) return;
+
+            highlightedNodes.clear();
+            draw();
+
+            Timeline timeline = new Timeline();
+
+            for (int i = 0; i < path.size(); i++) {
+                Node node = path.get(i);
+                KeyFrame kf = new KeyFrame(Duration.millis(i * 150), e -> {
+                    highlightedNodes.add(node);
+                    draw();
+                });
+                timeline.getKeyFrames().add(kf);
             }
-        });
+            timeline.play();
+        }
 
-        draw(); // Initial draw
-
-        Scene scene = new Scene(root, 1000, 750);
-        scene.setOnKeyPressed(e -> {
-            if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
-                resetConnectMode();
-                draw();
-            }
-        });
-        primaryStage.setTitle("HR Social Network Analysis");
-        primaryStage.setScene(scene);
-        primaryStage.show();
-    }
-
-// --- HELPERS ---
+    // --- HELPERS ---
 
     private void handleClick(double x, double y) {
         Node clicked = findNodeAt(x, y);
 
-        // Boş alana tıklandıysa → iptal
-        if (clicked == null) {
-            if (isConnectMode) {
-                resetConnectMode();
-                infoArea.setText("Connect mode cancelled.");
-                draw();
-            }
-            clearNodeInfo();
-            return;
+    // Boş alana tıklandıysa → iptal
+    if (clicked == null) {
+        if (isConnectMode) {
+            resetConnectMode();
+            infoArea.setText("Connect mode cancelled.");
+            draw();
         }
+        clearNodeInfo();
+        return;
+    }
 
-        // NORMAL MODE → sadece seçim
+
+        // NORMAL MODE
         if (!isConnectMode) {
             selected1 = clicked;
             selected2 = null;
@@ -371,7 +457,10 @@ public class Main extends Application {
             showNodeInfo(clicked);
             infoArea.setText("Selected: " + clicked.name);
             return;
+        } else {
+            clearNodeInfo();
         }
+
 
         // CONNECT MODE
         if (selected1 == null) {
@@ -412,8 +501,11 @@ public class Main extends Application {
 
     private void clearNodeInfo() {
         lblTitle.setText("Select a person");
-        lblId.setText("-"); lblName.setText("-");
-        lblActivity.setText("-"); lblInteraction.setText("-"); lblProjects.setText("-");
+        lblId.setText("-");
+        lblName.setText("-");
+        lblActivity.setText("-");
+        lblInteraction.setText("-");
+        lblProjects.setText("-");
     }
 
     private void openNodeDialog(Node node, boolean isNew) {
@@ -425,7 +517,8 @@ public class Main extends Application {
         dialog.getDialogPane().getButtonTypes().addAll(saveType, ButtonType.CANCEL);
 
         GridPane grid = new GridPane();
-        grid.setHgap(10); grid.setVgap(10);
+        grid.setHgap(10);
+        grid.setVgap(10);
         grid.setPadding(new Insets(20, 50, 10, 10));
 
         TextField nameField = new TextField(node.name);
@@ -433,10 +526,14 @@ public class Main extends Application {
         TextField interField = new TextField(String.valueOf(node.interaction));
         TextField projField = new TextField(String.valueOf(node.projects));
 
-        grid.add(new Label("Name:"), 0, 0); grid.add(nameField, 1, 0);
-        grid.add(new Label("Activity:"), 0, 1); grid.add(actField, 1, 1);
-        grid.add(new Label("Interactions:"), 0, 2); grid.add(interField, 1, 2);
-        grid.add(new Label("Projects:"), 0, 3); grid.add(projField, 1, 3);
+        grid.add(new Label("Name:"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Activity:"), 0, 1);
+        grid.add(actField, 1, 1);
+        grid.add(new Label("Interactions:"), 0, 2);
+        grid.add(interField, 1, 2);
+        grid.add(new Label("Projects:"), 0, 3);
+        grid.add(projField, 1, 3);
 
         dialog.getDialogPane().setContent(grid);
 
@@ -448,7 +545,9 @@ public class Main extends Application {
                     node.interaction = Integer.parseInt(interField.getText());
                     node.projects = Integer.parseInt(projField.getText());
                     return node;
-                } catch (Exception e) { return null; }
+                } catch (Exception e) {
+                    return null;
+                }
             }
             return null;
         });
@@ -475,7 +574,7 @@ public class Main extends Application {
 
     private int getNextId() {
         int max = 0;
-        for (Node n : graph.nodes) if(n.id > max) max = n.id;
+        for (Node n : graph.nodes) if (n.id > max) max = n.id;
         return max + 1;
     }
 
@@ -485,17 +584,17 @@ public class Main extends Application {
         Random rand = new Random();
         double w = canvas.getWidth();
         double h = canvas.getHeight();
-        
+
         for (int i = 1; i <= count; i++) {
-            graph.addNode(new Node(i, "Emp " + i, 
-                rand.nextDouble() * (w-50) + 25, 
-                rand.nextDouble() * (h-50) + 25, 
-                rand.nextDouble()*10, rand.nextInt(100), rand.nextInt(20)));
+            graph.addNode(new Node(i, "Emp " + i,
+                    rand.nextDouble() * (w - 50) + 25,
+                    rand.nextDouble() * (h - 50) + 25,
+                    rand.nextDouble() * 10, rand.nextInt(100), rand.nextInt(20)));
         }
         // Connect random nodes
         for (Node n : graph.nodes) {
             int connections = rand.nextInt(3) + 1;
-            for (int k=0; k<connections; k++) {
+            for (int k = 0; k < connections; k++) {
                 Node t = graph.nodes.get(rand.nextInt(count));
                 if (t != n) graph.addEdge(n, t);
             }
@@ -503,9 +602,10 @@ public class Main extends Application {
     }
 
     private void resetSelection() {
-        selected1 = null; selected2 = null; 
+        selected1 = null;
+        selected2 = null;
         highlightedNodes.clear();
-        for(Node n : graph.nodes) n.colorIndex = 0;
+        for (Node n : graph.nodes) n.colorIndex = 0;
     }
 
     // --- DRAWING ---
@@ -553,14 +653,12 @@ public class Main extends Application {
 
     private boolean isEdgeInPath(Edge e) {
         if (highlightedNodes.size() < 2) return false;
-        // Check if edge connects two consecutive nodes in the highlighted list
-        // Note: For BFS/DFS which return a set of nodes, we might not highlight edges, 
-        // but for Dijkstra/A* (Paths) we do.
-        // This logic assumes highlightedNodes is an ordered path.
-        for (int i=0; i<highlightedNodes.size()-1; i++) {
+        // Check if edge connects two nodes currently in the highlighted list
+        // Important for animation: we only highlight edges if both ends are revealed
+        for (int i = 0; i < highlightedNodes.size() - 1; i++) {
             Node n1 = highlightedNodes.get(i);
-            Node n2 = highlightedNodes.get(i+1);
-            if ((e.source==n1 && e.target==n2) || (e.source==n2 && e.target==n1)) return true;
+            Node n2 = highlightedNodes.get(i + 1);
+            if ((e.source == n1 && e.target == n2) || (e.source == n2 && e.target == n1)) return true;
         }
         return false;
     }
