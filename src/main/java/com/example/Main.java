@@ -86,8 +86,8 @@ public class Main extends Application {
         });
 
         itemGenerate.setOnAction(e -> {
-            generateRandomData(100);
-            infoArea.setText("100 new employees have been generated.");
+            generateRandomData(20);
+            infoArea.setText("20 new employees have been generated.");
             resetSelection();
             draw();
         });
@@ -101,6 +101,13 @@ public class Main extends Application {
 
         // --- CENTER ---
         root.setCenter(canvas);
+        canvas.widthProperty().bind(
+            root.widthProperty().subtract(250) // sağ panel payı
+        );
+        canvas.heightProperty().bind(
+            root.heightProperty().subtract(150) // alt bar payı
+        );
+
         // --- RIGHT INFO PANEL ---
         GridPane infoPanel = new GridPane();
         infoPanel.setPadding(new Insets(10));
@@ -161,45 +168,75 @@ public class Main extends Application {
         contextMenu.getItems().addAll(itemAddNode, itemEditNode, itemDeleteNode);
 
         // Logic for Right Click
-        canvas.setOnContextMenuRequested(e -> {
+        canvas.setOnMousePressed(e -> {
+        if (e.isSecondaryButtonDown()) {
+            contextMenu.hide();
+
             Node clickedNode = findNodeAt(e.getX(), e.getY());
-            
+
             if (clickedNode != null) {
-                // Clicked on a Node -> Show Edit/Delete, Hide Add
                 itemAddNode.setVisible(false);
                 itemEditNode.setVisible(true);
                 itemDeleteNode.setVisible(true);
-                
-                itemEditNode.setOnAction(ev -> openNodeDialog(clickedNode, false));
+
+                itemEditNode.setOnAction(ev -> {
+                    contextMenu.hide();
+                    openNodeDialog(clickedNode, false);
+                });
+
                 itemDeleteNode.setOnAction(ev -> {
+                    contextMenu.hide();
                     graph.removeNode(clickedNode);
-                    if(selected1 == clickedNode) selected1 = null;
-                    if(selected2 == clickedNode) selected2 = null;
+                    resetSelection();
+                    clearNodeInfo();
                     draw();
                     infoArea.setText("Deleted: " + clickedNode.name);
                 });
+
             } else {
-                // Clicked on Empty Space -> Show Add, Hide Edit/Delete
                 itemAddNode.setVisible(true);
                 itemEditNode.setVisible(false);
                 itemDeleteNode.setVisible(false);
-                
+
                 itemAddNode.setOnAction(ev -> {
-                    Node newNode = new Node(getNextId(), "New User", e.getX(), e.getY(), 5.0, 50, 5);
-                    openNodeDialog(newNode, true); // True means "isNew"
+                    contextMenu.hide();
+                    Node newNode = new Node(
+                        getNextId(),
+                        "New User",
+                        e.getX(),
+                        e.getY(),
+                        5.0,
+                        50,
+                        5
+                    );
+                    openNodeDialog(newNode, true);
                 });
             }
-            contextMenu.show(canvas, e.getScreenX(), e.getScreenY());
-        });
 
-        // Left Click Logic
-        canvas.setOnMouseClicked(e -> {
+            contextMenu.show(canvas, e.getScreenX(), e.getScreenY());
+        }
+    });
+
+
+
+
+
+        // Left Click Logic DENEME SİLİŞ
+        /*canvas.setOnMouseClicked(e -> {
             contextMenu.hide(); // Hide menu if visible
             if (e.getButton() == MouseButton.PRIMARY) {
                 handleClick(e.getX(), e.getY());
                 draw();
             }
-        });
+        })*/
+
+            canvas.setOnMouseClicked(e -> {
+                if (e.getButton() == MouseButton.PRIMARY) {
+                    handleClick(e.getX(), e.getY());
+                    draw();
+                }
+            });
+
 
         // --- BUTTON ACTIONS ---
         
@@ -255,6 +292,7 @@ public class Main extends Application {
         Scene scene = new Scene(root, 900, 750); // Increased height for new buttons
         primaryStage.setTitle("HR Network - Management System");
         primaryStage.setScene(scene);
+        primaryStage.setMaximized(true);
         primaryStage.show();
     }
 
@@ -293,19 +331,28 @@ public class Main extends Application {
         grid.setVgap(10);
         grid.setPadding(new Insets(20, 150, 10, 10));
 
+        TextField idField = new TextField(String.valueOf(node.id));
+        idField.setDisable(true); // 🔒 değiştirilemez
         TextField nameField = new TextField(node.name);
         TextField actField = new TextField(String.valueOf(node.activity));
         TextField interField = new TextField(String.valueOf(node.interaction));
         TextField projField = new TextField(String.valueOf(node.projects));
 
-        grid.add(new Label("Име:"), 0, 0);
-        grid.add(nameField, 1, 0);
-        grid.add(new Label("Activity (0-10):"), 0, 1);
-        grid.add(actField, 1, 1);
-        grid.add(new Label("Interactions:"), 0, 2);
-        grid.add(interField, 1, 2);
-        grid.add(new Label("Projects:"), 0, 3);
-        grid.add(projField, 1, 3);
+        grid.add(new Label("ID:"), 0, 0);
+        grid.add(idField, 1, 0);
+
+        grid.add(new Label("Name:"), 0, 1);
+        grid.add(nameField, 1, 1);
+
+        grid.add(new Label("Activity (0-10):"), 0, 2);
+        grid.add(actField, 1, 2);
+
+        grid.add(new Label("Interactions:"), 0, 3);
+        grid.add(interField, 1, 3);
+
+        grid.add(new Label("Projects:"), 0, 4);
+        grid.add(projField, 1, 4);
+
 
         dialog.getDialogPane().setContent(grid);
 
@@ -334,6 +381,8 @@ public class Main extends Application {
             } else {
                 infoArea.setText("Edited: " + updatedNode.name);
             }
+            showNodeInfo(updatedNode);
+
             draw();
         });
     }
@@ -360,8 +409,11 @@ public class Main extends Application {
         Random rand = new Random();
         for (int i = 1; i <= count; i++) {
             String name = "Employee " + i;
-            double x = rand.nextDouble() * 800 + 50; 
-            double y = rand.nextDouble() * 500 + 50; 
+            double margin = 40;
+
+            double x = margin + rand.nextDouble() * (canvas.getWidth() - 2 * margin);
+            double y = margin + rand.nextDouble() * (canvas.getHeight() - 2 * margin);
+
             graph.addNode(new Node(i, name, x, y, rand.nextDouble()*10, rand.nextInt(100), rand.nextInt(20)));
         }
         for (Node n : graph.nodes) {
