@@ -404,6 +404,7 @@ public class Main extends Application {
 
         primaryStage.setTitle("HR Social Network Analysis");
         primaryStage.setScene(scene);
+        primaryStage.setMaximized(true);
         primaryStage.show();
 
         draw(); // Initial draw
