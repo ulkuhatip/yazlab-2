@@ -11,6 +11,7 @@ import java.util.List;
 public class GraphRenderer {
 
     private final Canvas canvas;
+    public boolean showPathLines = true;
 
     public GraphRenderer(Canvas canvas) {
         this.canvas = canvas;
@@ -43,7 +44,7 @@ public class GraphRenderer {
             
             boolean isConnectedToSelected = (selected1 != null) && (e.source == selected1 || e.target == selected1);
 
-            if (isPath) {
+           if (showPathLines && isPath) {
                 gc.setStroke(Color.RED);
                 gc.setLineWidth(3);
             } else if (isConnectedToSelected) {

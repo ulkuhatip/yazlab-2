@@ -145,7 +145,6 @@ public class Main extends Application {
         
         setFullWidth(btnComponents, btnColor, btnCentrality);
 
-        // Група 3: Редактиране
         Label lblEdit = new Label("Edit Graph");
         lblEdit.setStyle("-fx-font-weight: bold; -fx-text-fill: #333;");
 
@@ -155,11 +154,25 @@ public class Main extends Application {
         
         setFullWidth(btnAddEdge, btnRemoveEdge, btnReset);
 
-        // Добавяне на действията
-        btnBFS.setOnAction(e -> graphController.runBFS(state, highlightedNodes));
-        btnDFS.setOnAction(e -> graphController.runDFS(state, highlightedNodes));
-        btnDijkstra.setOnAction(e -> graphController.runDijkstra(state, highlightedNodes));
-        btnAStar.setOnAction(e -> graphController.runAStar(state, highlightedNodes));
+      btnBFS.setOnAction(e -> {
+            renderer.showPathLines = false; 
+            graphController.runBFS(state, highlightedNodes);
+        });
+        
+        btnDFS.setOnAction(e -> {
+            renderer.showPathLines = false;
+            graphController.runDFS(state, highlightedNodes);
+        });
+
+        btnDijkstra.setOnAction(e -> {
+            renderer.showPathLines = true;
+            graphController.runDijkstra(state, highlightedNodes);
+        });
+        
+        btnAStar.setOnAction(e -> {
+            renderer.showPathLines = true;
+            graphController.runAStar(state, highlightedNodes);
+        });
         btnCompare.setOnAction(e -> graphController.runComparison(state));
         
         btnComponents.setOnAction(e -> graphController.runComponents());
@@ -242,28 +255,23 @@ public class Main extends Application {
         colId.setCellValueFactory(cell -> new javafx.beans.property.SimpleIntegerProperty(cell.getValue().id));
         colId.setPrefWidth(40);
 
-        // 2. Ozellik_I (Aktiflik)
         TableColumn<Node, Number> colActivity = new TableColumn<>("Aktiflik");
         colActivity.setCellValueFactory(cell -> new javafx.beans.property.SimpleDoubleProperty(cell.getValue().activity));
         colActivity.setPrefWidth(60);
 
-        // 3. Ozellik_II (Etkilesim)
         TableColumn<Node, Number> colInteraction = new TableColumn<>("Etkilesim");
         colInteraction.setCellValueFactory(cell -> new javafx.beans.property.SimpleIntegerProperty(cell.getValue().interaction));
         colInteraction.setPrefWidth(70);
 
-        // 4. Ozellik_III (Bagl. Sayisi / Projects)
         TableColumn<Node, Number> colProjects = new TableColumn<>("Projeler");
         colProjects.setCellValueFactory(cell -> new javafx.beans.property.SimpleIntegerProperty(cell.getValue().projects));
         colProjects.setPrefWidth(60);
 
-        // 5. Komsular (Neighbors) - ИЗЧИСЛЯВА СЕ ДИНАМИЧНО
         TableColumn<Node, String> colNeighbors = new TableColumn<>("Komsular");
         colNeighbors.setCellValueFactory(cell -> {
             Node currentNode = cell.getValue();
             List<String> neighborIds = new ArrayList<>();
             
-            // Търсим в edges всички връзки с този Node
             for (Edge e : graph.edges) {
                 if (e.source == currentNode) {
                     neighborIds.add(String.valueOf(e.target.id));
@@ -271,7 +279,6 @@ public class Main extends Application {
                     neighborIds.add(String.valueOf(e.source.id));
                 }
             }
-            // Връщаме ги като стринг: "2, 4, 5"
             String res = String.join(", ", neighborIds);
             return new SimpleStringProperty(res.isEmpty() ? "-" : res);
         });
@@ -328,7 +335,6 @@ public class Main extends Application {
     }
 
     private void setupEvents(Stage stage) {
-        // Контекстно меню (десен бутон)
         ContextMenu contextMenu = new ContextMenu();
         MenuItem itemAddNode = new MenuItem("Add Person");
         MenuItem itemEditNode = new MenuItem("Edit Properties");
