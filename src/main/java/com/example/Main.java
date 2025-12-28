@@ -17,17 +17,17 @@ import javafx.stage.Stage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.Random;
 
 public class Main extends Application {
 
     private final Graph graph = new Graph();
-
     private final Canvas canvas = new Canvas(900, 600);
     private final TextArea infoArea = new TextArea();
+    
+    // Таблица за резултатите (изискване за визуализация + таблица)
+    private final TableView<Node> resultTable = new TableView<>();
 
-    // ✅ Single source of truth for selection/connect state
+    // Single source of truth for selection/connect state
     private final InteractionState state = new InteractionState();
 
     // Ghost line mouse coords
@@ -36,9 +36,10 @@ public class Main extends Application {
     private GraphRenderer renderer;
     private InteractionController interactionController;
     private AnimationManager animationManager;
+    private GraphController graphController; // Нашият логически контролер
 
     // Highlighted nodes (path / search results)
-    private List<Node> highlightedNodes = new ArrayList<>();
+    private final List<Node> highlightedNodes = new ArrayList<>();
 
     // --- Employee Info Panel labels ---
     private final Label lblId = new Label("-");
@@ -54,17 +55,36 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-
         // Load default file if exists
         File defaultFile = new File("data.json");
         if (defaultFile.exists()) {
             JsonLoader.load("data.json", graph);
         }
 
+        // --- 0. НАСТРОЙКА НА ТАБЛИЦАТА ---
+        resultTable.setPrefHeight(150);
+        
+        TableColumn<Node, Number> colId = new TableColumn<>("ID");
+        colId.setCellValueFactory(cell -> new javafx.beans.property.SimpleIntegerProperty(cell.getValue().id));
+        colId.setPrefWidth(50);
+
+        TableColumn<Node, String> colName = new TableColumn<>("Name");
+        colName.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(cell.getValue().name));
+        colName.setPrefWidth(150);
+
+        TableColumn<Node, Number> colActivity = new TableColumn<>("Activity");
+        colActivity.setCellValueFactory(cell -> new javafx.beans.property.SimpleDoubleProperty(cell.getValue().activity));
+        colActivity.setPrefWidth(100);
+
+        resultTable.getColumns().addAll(colId, colName, colActivity);
+
         // Core helpers
         renderer = new GraphRenderer(canvas);
         interactionController = new InteractionController(graph, infoArea);
         animationManager = new AnimationManager();
+        
+        // ВАЖНО: Подаваме и resultTable на контролера
+        graphController = new GraphController(graph, infoArea, animationManager, resultTable, this::draw);
 
         BorderPane root = new BorderPane();
 
@@ -93,6 +113,11 @@ public class Main extends Application {
                 JsonLoader.load(file.getAbsolutePath(), graph);
                 infoArea.setText("Loaded file: " + file.getName());
                 resetSelection();
+                
+                // Обновяваме таблицата с всички заредени хора
+                resultTable.getItems().clear();
+                resultTable.getItems().addAll(graph.nodes);
+                
                 draw();
             }
         });
@@ -110,22 +135,16 @@ public class Main extends Application {
         });
 
         itemGenerate.setOnAction(e -> {
-            generateRandomData(50);
-            infoArea.setText("Generated 50 random employees. Try 'Compare Algorithms' now!");
+            graphController.generateRandomData(canvas.getWidth(), canvas.getHeight(), 50);
             resetSelection();
-            draw();
         });
 
         itemExit.setOnAction(e -> System.exit(0));
 
         // --- 2. CENTER (Canvas) ---
         root.setCenter(canvas);
-
-        // Make canvas responsive
         canvas.widthProperty().bind(root.widthProperty().subtract(250));
-        canvas.heightProperty().bind(root.heightProperty().subtract(200));
-
-        // Redraw when resized
+        canvas.heightProperty().bind(root.heightProperty().subtract(250)); // Малко повече място заради таблицата
         canvas.widthProperty().addListener(evt -> draw());
         canvas.heightProperty().addListener(evt -> draw());
 
@@ -140,7 +159,6 @@ public class Main extends Application {
         lblTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
         infoPanel.add(lblTitle, 0, 0, 2, 1);
         infoPanel.add(new Separator(), 0, 1, 2, 1);
-
         infoPanel.add(new Label("ID:"), 0, 2);
         infoPanel.add(lblId, 1, 2);
         infoPanel.add(new Label("Name:"), 0, 3);
@@ -154,7 +172,7 @@ public class Main extends Application {
 
         root.setRight(infoPanel);
 
-        // --- 4. BOTTOM PANEL (Buttons) ---
+        // --- 4. BOTTOM PANEL (Buttons + Table) ---
         VBox bottomContainer = new VBox(8);
         bottomContainer.setPadding(new Insets(10));
         bottomContainer.setStyle("-fx-background-color: #e0e0e0;");
@@ -181,127 +199,23 @@ public class Main extends Application {
         Label lblHint = new Label("(Left-click 2 nodes to select)");
         row3.getChildren().addAll(new Label("Edit:"), btnAddEdge, btnRemoveEdge, lblHint);
 
-        bottomContainer.getChildren().addAll(row1, row2, row3, infoArea);
-        infoArea.setPrefHeight(60);
+        // Добавяме и таблицата най-отдолу
+        bottomContainer.getChildren().addAll(row1, row2, row3, infoArea, resultTable);
+        infoArea.setPrefHeight(50);
+        
         root.setBottom(bottomContainer);
 
         // --- 5. EVENT HANDLERS ---
+        // Делегираме всичко на GraphController
 
-        btnBFS.setOnAction(e -> {
-            if (state.selected1 != null) {
-                highlightedNodes = GraphAlgorithms.runBFS(graph, state.selected1);
-                infoArea.setText("BFS: Found " + highlightedNodes.size() + " reachable people from " + state.selected1.name);
-                draw();
-            } else {
-                infoArea.setText("Select 1 person to start BFS.");
-            }
-        });
-
-        btnDFS.setOnAction(e -> {
-            if (state.selected1 != null) {
-                highlightedNodes = GraphAlgorithms.runDFS(graph, state.selected1);
-                infoArea.setText("DFS: Found " + highlightedNodes.size() + " reachable people from " + state.selected1.name);
-                draw();
-            } else {
-                infoArea.setText("Select 1 person to start DFS.");
-            }
-        });
-
-        btnDijkstra.setOnAction(e -> {
-            if (state.selected1 != null && state.selected2 != null) {
-                List<Node> path = GraphAlgorithms.runDijkstra(graph, state.selected1, state.selected2);
-                if (path.isEmpty()) {
-                    infoArea.setText("No path found.");
-                    highlightedNodes.clear();
-                    draw();
-                } else {
-                    infoArea.setText("Dijkstra Path: " + path.size() + " steps. Animating...");
-                    animationManager.animatePath(path, highlightedNodes, this::draw);
-                }
-            } else {
-                infoArea.setText("Select 2 people for Dijkstra.");
-            }
-        });
-
-        btnAStar.setOnAction(e -> {
-            if (state.selected1 != null && state.selected2 != null) {
-                List<Node> path = GraphAlgorithms.runAStar(graph, state.selected1, state.selected2);
-                if (path.isEmpty()) {
-                    infoArea.setText("No path found.");
-                    highlightedNodes.clear();
-                    draw();
-                } else {
-                    infoArea.setText("A* Path: " + path.size() + " steps. Animating...");
-                    animationManager.animatePath(path, highlightedNodes, this::draw);
-                }
-            } else {
-                infoArea.setText("Select 2 people for A*.");
-            }
-        });
-
-        btnCompare.setOnAction(e -> {
-            if (state.selected1 != null && state.selected2 != null) {
-                StringBuilder result = new StringBuilder("🏆 Algorithm Performance Race 🏆\n");
-                result.append("Route: ").append(state.selected1.name).append(" ➔ ").append(state.selected2.name).append("\n\n");
-
-                long startD = System.nanoTime();
-                List<Node> pathD = GraphAlgorithms.runDijkstra(graph, state.selected1, state.selected2);
-                long endD = System.nanoTime();
-                double timeD = (endD - startD) / 1_000_000.0;
-                result.append(String.format("🔹 Dijkstra:\n   Time: %.4f ms\n   Steps: %d\n\n", timeD, pathD.size()));
-
-                long startA = System.nanoTime();
-                List<Node> pathA = GraphAlgorithms.runAStar(graph, state.selected1, state.selected2);
-                long endA = System.nanoTime();
-                double timeA = (endA - startA) / 1_000_000.0;
-                result.append(String.format("🔸 A* (A-Star):\n   Time: %.4f ms\n   Steps: %d\n\n", timeA, pathA.size()));
-
-                long startBFS = System.nanoTime();
-                List<Node> reachBFS = GraphAlgorithms.runBFS(graph, state.selected1);
-                boolean canReach = reachBFS.contains(state.selected2);
-                long endBFS = System.nanoTime();
-                double timeBFS = (endBFS - startBFS) / 1_000_000.0;
-                result.append(String.format("🔹 BFS (Scan):\n   Time: %.4f ms\n   Reachable: %s\n", timeBFS, canReach ? "YES" : "NO"));
-
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setTitle("Performance Benchmark");
-                alert.setHeaderText("Race Results");
-                alert.setContentText(result.toString());
-                alert.showAndWait();
-            } else {
-                infoArea.setText("Select 2 people to compare algorithms!");
-            }
-        });
-
-        btnComponents.setOnAction(e -> {
-            int count = GraphAlgorithms.countAndColorComponents(graph);
-            infoArea.setText("Found " + count + " disconnected communities (Islands). They are now colored.");
-            draw();
-        });
-
-        btnColor.setOnAction(e -> {
-            GraphAlgorithms.runColoring(graph);
-            draw();
-            infoArea.setText("Graph colored using Welsh-Powell algorithm.");
-        });
-
-        btnCentrality.setOnAction(e -> {
-            List<Node> top = GraphAlgorithms.getTopCentrality(graph);
-
-            for (Node n : graph.nodes) n.colorIndex = 0;
-
-            if (!top.isEmpty()) {
-                StringBuilder sb = new StringBuilder("Top 5 Influencers:\n");
-                int count = Math.min(5, top.size());
-                for (int i = 0; i < count; i++) {
-                    Node n = top.get(i);
-                    n.colorIndex = i + 1;
-                    sb.append(String.format("%d. %s (%d connections)\n", i + 1, n.name, graph.getDegree(n)));
-                }
-                infoArea.setText(sb.toString());
-                draw();
-            }
-        });
+        btnBFS.setOnAction(e -> graphController.runBFS(state, highlightedNodes));
+        btnDFS.setOnAction(e -> graphController.runDFS(state, highlightedNodes));
+        btnDijkstra.setOnAction(e -> graphController.runDijkstra(state, highlightedNodes));
+        btnAStar.setOnAction(e -> graphController.runAStar(state, highlightedNodes));
+        btnCompare.setOnAction(e -> graphController.runComparison(state));
+        btnComponents.setOnAction(e -> graphController.runComponents());
+        btnColor.setOnAction(e -> graphController.runColoring());
+        btnCentrality.setOnAction(e -> graphController.runCentrality());
 
         btnReset.setOnAction(e -> {
             resetSelection();
@@ -339,13 +253,15 @@ public class Main extends Application {
                 itemEditNode.setVisible(true);
                 itemDeleteNode.setVisible(true);
 
-                itemEditNode.setOnAction(ev -> openNodeDialog(clickedNode, false));
+                itemEditNode.setOnAction(ev -> {
+                    NodeFormDialog.open(clickedNode, false, graph, infoArea, this::draw);
+                    showNodeInfo(clickedNode);
+                });
+                
                 itemDeleteNode.setOnAction(ev -> {
                     graph.removeNode(clickedNode);
-
                     if (state.selected1 == clickedNode) state.selected1 = null;
                     if (state.selected2 == clickedNode) state.selected2 = null;
-
                     clearNodeInfo();
                     draw();
                     infoArea.setText("Deleted: " + clickedNode.name);
@@ -357,21 +273,17 @@ public class Main extends Application {
                 itemDeleteNode.setVisible(false);
 
                 itemAddNode.setOnAction(ev -> {
-                    Node newNode = new Node(getNextId(), "New Employee", e.getX(), e.getY(), 5.0, 50, 5);
-                    openNodeDialog(newNode, true);
+                    Node newNode = new Node(graphController.getNextId(), "New Employee", e.getX(), e.getY(), 5.0, 50, 5);
+                    NodeFormDialog.open(newNode, true, graph, infoArea, this::draw);
                 });
             }
-
             contextMenu.show(canvas, e.getScreenX(), e.getScreenY());
         });
 
-        // --- 7. MOUSE EVENTS (hover + ghost + click) ---
+        // --- 7. MOUSE EVENTS ---
         canvas.setOnMouseMoved(e -> {
-            // Hover cursor
             Node hovered = interactionController.findNodeAt(e.getX(), e.getY());
             canvas.setCursor(hovered != null ? Cursor.HAND : Cursor.DEFAULT);
-
-            // Ghost line tracking
             if (state.isConnectMode && state.selected1 != null) {
                 mouseX = e.getX();
                 mouseY = e.getY();
@@ -381,20 +293,16 @@ public class Main extends Application {
 
         canvas.setOnMouseClicked(e -> {
             contextMenu.hide();
-
             if (e.getButton() == MouseButton.PRIMARY) {
                 interactionController.handleClick(e.getX(), e.getY(), state, highlightedNodes);
-
-                // Optional: show right panel info when selecting in NORMAL mode
                 if (!state.isConnectMode && state.selected1 != null) {
                     showNodeInfo(state.selected1);
                 }
-
                 draw();
             }
         });
 
-        Scene scene = new Scene(root, 1000, 750);
+        Scene scene = new Scene(root, 1000, 800); // Малко по-висок прозорец заради таблицата
         scene.setOnKeyPressed(e -> {
             if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
                 interactionController.resetConnectMode(state);
@@ -407,11 +315,11 @@ public class Main extends Application {
         primaryStage.setMaximized(true);
         primaryStage.show();
 
-        draw(); // Initial draw
+        draw();
     }
 
     // -------------------------------------------------------------------------
-    // Helper UI
+    // UI Helpers (Right Panel)
     // -------------------------------------------------------------------------
 
     private void showNodeInfo(Node n) {
@@ -432,122 +340,18 @@ public class Main extends Application {
         lblProjects.setText("-");
     }
 
-    private void openNodeDialog(Node node, boolean isNew) {
-        Dialog<Node> dialog = new Dialog<>();
-        dialog.setTitle(isNew ? "Add Person" : "Edit Person");
-        dialog.setHeaderText("Enter details:");
-
-        ButtonType saveType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(saveType, ButtonType.CANCEL);
-
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(20, 50, 10, 10));
-
-        TextField nameField = new TextField(node.name);
-        TextField actField = new TextField(String.valueOf(node.activity));
-        TextField interField = new TextField(String.valueOf(node.interaction));
-        TextField projField = new TextField(String.valueOf(node.projects));
-
-        grid.add(new Label("Name:"), 0, 0);
-        grid.add(nameField, 1, 0);
-        grid.add(new Label("Activity:"), 0, 1);
-        grid.add(actField, 1, 1);
-        grid.add(new Label("Interactions:"), 0, 2);
-        grid.add(interField, 1, 2);
-        grid.add(new Label("Projects:"), 0, 3);
-        grid.add(projField, 1, 3);
-
-        dialog.getDialogPane().setContent(grid);
-
-        dialog.setResultConverter(btn -> {
-            if (btn == saveType) {
-                try {
-                    node.name = nameField.getText();
-                    node.activity = Double.parseDouble(actField.getText());
-                    node.interaction = Integer.parseInt(interField.getText());
-                    node.projects = Integer.parseInt(projField.getText());
-                    return node;
-                } catch (Exception e) {
-                    return null;
-                }
-            }
-            return null;
-        });
-
-        Optional<Node> result = dialog.showAndWait();
-        result.ifPresent(n -> {
-            if (isNew) {
-                graph.addNode(n);
-                infoArea.setText("Added: " + n.name);
-            } else {
-                infoArea.setText("Updated: " + n.name);
-            }
-            showNodeInfo(n);
-            draw();
-        });
-    }
-
-    // -------------------------------------------------------------------------
-    // Data helpers
-    // -------------------------------------------------------------------------
-
-    private int getNextId() {
-        int max = 0;
-        for (Node n : graph.nodes) if (n.id > max) max = n.id;
-        return max + 1;
-    }
-
-    private void generateRandomData(int count) {
-        graph.nodes.clear();
-        graph.edges.clear();
-
-        Random rand = new Random();
-        double w = canvas.getWidth();
-        double h = canvas.getHeight();
-
-        for (int i = 1; i <= count; i++) {
-            graph.addNode(new Node(
-                i,
-                "Emp " + i,
-                rand.nextDouble() * (w - 50) + 25,
-                rand.nextDouble() * (h - 50) + 25,
-                rand.nextDouble() * 10,
-                rand.nextInt(100),
-                rand.nextInt(20)
-            ));
-        }
-
-        for (Node n : graph.nodes) {
-            int connections = rand.nextInt(3) + 1;
-            for (int k = 0; k < connections; k++) {
-                Node t = graph.nodes.get(rand.nextInt(count));
-                if (t != n) graph.addEdge(n, t);
-            }
-        }
-    }
-
     private void resetSelection() {
         state.selected1 = null;
         state.selected2 = null;
         state.isConnectMode = false;
-
         highlightedNodes.clear();
         for (Node n : graph.nodes) n.colorIndex = 0;
-
+        
+        resultTable.getItems().clear(); // Чистим и таблицата при ресет
         clearNodeInfo();
     }
 
-    // -------------------------------------------------------------------------
-    // Drawing entry points
-    // -------------------------------------------------------------------------
-
     private void draw() {
-        redraw();
-    }
-
-    private void redraw() {
         renderer.draw(
             graph,
             highlightedNodes,
@@ -559,4 +363,3 @@ public class Main extends Application {
         );
     }
 }
-
