@@ -1,47 +1,45 @@
 package com.example;
 
 import javafx.application.Application;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.geometry.Insets;
 import javafx.scene.Cursor;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Main extends Application {
 
     private final Graph graph = new Graph();
-    private final Canvas canvas = new Canvas(900, 600);
+    private final Canvas canvas = new Canvas(800, 600); // Малко по-малък, за да се събере всичко
     private final TextArea infoArea = new TextArea();
     
-    // Таблица за резултатите (изискване за визуализация + таблица)
+    // Таблица за резултатите (по снимката)
     private final TableView<Node> resultTable = new TableView<>();
 
-    // Single source of truth for selection/connect state
+    // Състояние на интеракцията
     private final InteractionState state = new InteractionState();
 
-    // Ghost line mouse coords
+    // Координати на мишката за ghost line
     private double mouseX, mouseY;
 
     private GraphRenderer renderer;
     private InteractionController interactionController;
     private AnimationManager animationManager;
-    private GraphController graphController; // Нашият логически контролер
+    private GraphController graphController;
 
-    // Highlighted nodes (path / search results)
     private final List<Node> highlightedNodes = new ArrayList<>();
 
-    // --- Employee Info Panel labels ---
+    // --- Инфо панел етикети ---
     private final Label lblId = new Label("-");
     private final Label lblName = new Label("-");
     private final Label lblActivity = new Label("-");
@@ -55,164 +53,115 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        // Load default file if exists
+        // Зареждане на данни по подразбиране
         File defaultFile = new File("data.json");
         if (defaultFile.exists()) {
             JsonLoader.load("data.json", graph);
         }
 
-        // --- 0. НАСТРОЙКА НА ТАБЛИЦАТА ---
-        resultTable.setPrefHeight(150);
-        
-        TableColumn<Node, Number> colId = new TableColumn<>("ID");
-        colId.setCellValueFactory(cell -> new javafx.beans.property.SimpleIntegerProperty(cell.getValue().id));
-        colId.setPrefWidth(50);
-
-        TableColumn<Node, String> colName = new TableColumn<>("Name");
-        colName.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(cell.getValue().name));
-        colName.setPrefWidth(150);
-
-        TableColumn<Node, Number> colActivity = new TableColumn<>("Activity");
-        colActivity.setCellValueFactory(cell -> new javafx.beans.property.SimpleDoubleProperty(cell.getValue().activity));
-        colActivity.setPrefWidth(100);
-
-        resultTable.getColumns().addAll(colId, colName, colActivity);
-
-        // Core helpers
+        // Helpers
         renderer = new GraphRenderer(canvas);
         interactionController = new InteractionController(graph, infoArea);
         animationManager = new AnimationManager();
-        
-        // ВАЖНО: Подаваме и resultTable на контролера
         graphController = new GraphController(graph, infoArea, animationManager, resultTable, this::draw);
 
         BorderPane root = new BorderPane();
 
-        // --- 1. MENU BAR ---
-        MenuBar menuBar = new MenuBar();
-        Menu menuFile = new Menu("File");
-        MenuItem itemOpen = new MenuItem("Open JSON...");
-        MenuItem itemSave = new MenuItem("Save JSON...");
-        MenuItem itemExit = new MenuItem("Exit");
-
-        Menu menuTools = new Menu("Tools");
-        MenuItem itemGenerate = new MenuItem("Generate Random Data...");
-
-        menuFile.getItems().addAll(itemOpen, itemSave, new SeparatorMenuItem(), itemExit);
-        menuTools.getItems().add(itemGenerate);
-        menuBar.getMenus().addAll(menuFile, menuTools);
+        // ---------------------------------------------------------
+        // 1. MENU BAR (Най-горе)
+        // ---------------------------------------------------------
+        MenuBar menuBar = createMenuBar(primaryStage);
         root.setTop(menuBar);
 
-        // Menu Actions
-        itemOpen.setOnAction(e -> {
-            FileChooser fileChooser = new FileChooser();
-            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
-            File file = fileChooser.showOpenDialog(primaryStage);
+        // ---------------------------------------------------------
+        // 2. LEFT PANEL - БУТОНИ (В ляво)
+        // ---------------------------------------------------------
+        VBox leftPanel = createLeftPanel();
+        root.setLeft(leftPanel);
 
-            if (file != null) {
-                JsonLoader.load(file.getAbsolutePath(), graph);
-                infoArea.setText("Loaded file: " + file.getName());
-                resetSelection();
-                
-                // Обновяваме таблицата с всички заредени хора
-                resultTable.getItems().clear();
-                resultTable.getItems().addAll(graph.nodes);
-                
-                draw();
-            }
-        });
+        // ---------------------------------------------------------
+        // 3. RIGHT PANEL - ТАБЛИЦА + ИНФО (В дясно)
+        // ---------------------------------------------------------
+        VBox rightPanel = createRightPanel();
+        root.setRight(rightPanel);
 
-        itemSave.setOnAction(e -> {
-            FileChooser fileChooser = new FileChooser();
-            fileChooser.setInitialFileName("data.json");
-            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
-            File file = fileChooser.showSaveDialog(primaryStage);
-
-            if (file != null) {
-                JsonLoader.save(file.getAbsolutePath(), graph);
-                infoArea.setText("File saved successfully!");
-            }
-        });
-
-        itemGenerate.setOnAction(e -> {
-            graphController.generateRandomData(canvas.getWidth(), canvas.getHeight(), 50);
-            resetSelection();
-        });
-
-        itemExit.setOnAction(e -> System.exit(0));
-
-        // --- 2. CENTER (Canvas) ---
-        root.setCenter(canvas);
-        canvas.widthProperty().bind(root.widthProperty().subtract(250));
-        canvas.heightProperty().bind(root.heightProperty().subtract(250)); // Малко повече място заради таблицата
+        // ---------------------------------------------------------
+        // 4. CENTER - CANVAS (По средата)
+        // ---------------------------------------------------------
+        Pane canvasContainer = new Pane(canvas);
+        canvasContainer.setStyle("-fx-background-color: #fcfcfc; -fx-border-color: #ddd;");
+        // Canvas-а да се преоразмерява с прозореца
+        canvas.widthProperty().bind(canvasContainer.widthProperty());
+        canvas.heightProperty().bind(canvasContainer.heightProperty());
         canvas.widthProperty().addListener(evt -> draw());
         canvas.heightProperty().addListener(evt -> draw());
+        
+        root.setCenter(canvasContainer);
 
-        // --- 3. RIGHT PANEL (Info) ---
-        GridPane infoPanel = new GridPane();
-        infoPanel.setPadding(new Insets(10));
-        infoPanel.setHgap(10);
-        infoPanel.setVgap(8);
-        infoPanel.setPrefWidth(240);
-        infoPanel.setStyle("-fx-background-color: #f0f0f0; -fx-border-color: #ccc;");
+        // ---------------------------------------------------------
+        // 5. EVENT HANDLERS & SETUP
+        // ---------------------------------------------------------
+        setupEvents(primaryStage);
+        
+        // Първоначално зареждане на таблицата
+        resultTable.getItems().addAll(graph.nodes);
 
-        lblTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-        infoPanel.add(lblTitle, 0, 0, 2, 1);
-        infoPanel.add(new Separator(), 0, 1, 2, 1);
-        infoPanel.add(new Label("ID:"), 0, 2);
-        infoPanel.add(lblId, 1, 2);
-        infoPanel.add(new Label("Name:"), 0, 3);
-        infoPanel.add(lblName, 1, 3);
-        infoPanel.add(new Label("Activity:"), 0, 4);
-        infoPanel.add(lblActivity, 1, 4);
-        infoPanel.add(new Label("Interactions:"), 0, 5);
-        infoPanel.add(lblInteraction, 1, 5);
-        infoPanel.add(new Label("Projects:"), 0, 6);
-        infoPanel.add(lblProjects, 1, 6);
+        Scene scene = new Scene(root, 1200, 750); // По-широк екран
+        primaryStage.setTitle("HR Social Network Analysis");
+        primaryStage.setScene(scene);
+        primaryStage.setMaximized(true);
+        primaryStage.show();
 
-        root.setRight(infoPanel);
+        draw();
+    }
 
-        // --- 4. BOTTOM PANEL (Buttons + Table) ---
-        VBox bottomContainer = new VBox(8);
-        bottomContainer.setPadding(new Insets(10));
-        bottomContainer.setStyle("-fx-background-color: #e0e0e0;");
+    // --- СЪЗДАВАНЕ НА ЛЯВ ПАНЕЛ (БУТОНИ) ---
+    private VBox createLeftPanel() {
+        VBox box = new VBox(15);
+        box.setPadding(new Insets(15));
+        box.setPrefWidth(220);
+        box.setStyle("-fx-background-color: #e0e0e0; -fx-border-color: #aaa; -fx-border-width: 0 1 0 0;");
 
-        HBox row1 = new HBox(10);
-        Button btnBFS = new Button("BFS");
-        Button btnDFS = new Button("DFS");
-        Button btnDijkstra = new Button("Dijkstra (Anim)");
-        Button btnAStar = new Button("A* (Anim)");
+        // Група 1: Търсене
+        Label lblSearch = new Label("Search Algorithms");
+        lblSearch.setStyle("-fx-font-weight: bold; -fx-text-fill: #333;");
+        
+        Button btnBFS = new Button("BFS Search");
+        Button btnDFS = new Button("DFS Search");
+        Button btnDijkstra = new Button("Dijkstra (Shortest)");
+        Button btnAStar = new Button("A* Pathfinding");
         Button btnCompare = new Button("⚡ Compare All");
         btnCompare.setStyle("-fx-background-color: #ffcc00; -fx-text-fill: black; -fx-font-weight: bold;");
-        row1.getChildren().addAll(new Label("Search:"), btnBFS, btnDFS, btnDijkstra, btnAStar, btnCompare);
 
-        HBox row2 = new HBox(10);
-        Button btnComponents = new Button("Islands (Color)");
-        Button btnColor = new Button("Coloring (WP)");
+        setFullWidth(btnBFS, btnDFS, btnDijkstra, btnAStar, btnCompare);
+
+        // Група 2: Анализ
+        Label lblAnalyze = new Label("Network Analysis");
+        lblAnalyze.setStyle("-fx-font-weight: bold; -fx-text-fill: #333;");
+
+        Button btnComponents = new Button("Find Islands");
+        Button btnColor = new Button("Color Graph (WP)");
         Button btnCentrality = new Button("Top Leaders");
-        Button btnReset = new Button("Reset View");
-        row2.getChildren().addAll(new Label("Analyze:"), btnComponents, btnColor, btnCentrality, btnReset);
-
-        HBox row3 = new HBox(10);
-        Button btnAddEdge = new Button("➕ Connect");
-        Button btnRemoveEdge = new Button("❌ Disconnect");
-        Label lblHint = new Label("(Left-click 2 nodes to select)");
-        row3.getChildren().addAll(new Label("Edit:"), btnAddEdge, btnRemoveEdge, lblHint);
-
-        // Добавяме и таблицата най-отдолу
-        bottomContainer.getChildren().addAll(row1, row2, row3, infoArea, resultTable);
-        infoArea.setPrefHeight(50);
         
-        root.setBottom(bottomContainer);
+        setFullWidth(btnComponents, btnColor, btnCentrality);
 
-        // --- 5. EVENT HANDLERS ---
-        // Делегираме всичко на GraphController
+        // Група 3: Редактиране
+        Label lblEdit = new Label("Edit Graph");
+        lblEdit.setStyle("-fx-font-weight: bold; -fx-text-fill: #333;");
 
+        Button btnAddEdge = new Button("➕ Connect Mode");
+        Button btnRemoveEdge = new Button("❌ Disconnect Selected");
+        Button btnReset = new Button("↺ Reset View");
+        
+        setFullWidth(btnAddEdge, btnRemoveEdge, btnReset);
+
+        // Добавяне на действията
         btnBFS.setOnAction(e -> graphController.runBFS(state, highlightedNodes));
         btnDFS.setOnAction(e -> graphController.runDFS(state, highlightedNodes));
         btnDijkstra.setOnAction(e -> graphController.runDijkstra(state, highlightedNodes));
         btnAStar.setOnAction(e -> graphController.runAStar(state, highlightedNodes));
         btnCompare.setOnAction(e -> graphController.runComparison(state));
+        
         btnComponents.setOnAction(e -> graphController.runComponents());
         btnColor.setOnAction(e -> graphController.runColoring());
         btnCentrality.setOnAction(e -> graphController.runCentrality());
@@ -222,32 +171,173 @@ public class Main extends Application {
             draw();
             infoArea.setText("View cleared.");
         });
-
+        
         btnAddEdge.setOnAction(e -> {
             interactionController.startConnectMode(state, highlightedNodes);
             draw();
         });
-
+        
         btnRemoveEdge.setOnAction(e -> {
             if (state.selected1 != null && state.selected2 != null) {
                 graph.removeEdge(state.selected1, state.selected2);
                 draw();
-                infoArea.setText("Disconnected: " + state.selected1.name + " & " + state.selected2.name);
+                // Обновяваме и таблицата, защото съседите се променят
+                resultTable.refresh();
+                infoArea.setText("Disconnected.");
             } else {
                 infoArea.setText("Select 2 people first.");
             }
         });
 
-        // --- 6. CONTEXT MENU ---
+        box.getChildren().addAll(
+            lblSearch, btnBFS, btnDFS, btnDijkstra, btnAStar, btnCompare, new Separator(),
+            lblAnalyze, btnComponents, btnColor, btnCentrality, new Separator(),
+            lblEdit, btnAddEdge, btnRemoveEdge, btnReset
+        );
+        return box;
+    }
+
+    // --- СЪЗДАВАНЕ НА ДЕСЕН ПАНЕЛ (ТАБЛИЦА) ---
+    private VBox createRightPanel() {
+        VBox box = new VBox(10);
+        box.setPadding(new Insets(10));
+        box.setPrefWidth(420); // По-широк за таблицата
+        box.setStyle("-fx-background-color: #f0f0f0; -fx-border-color: #aaa; -fx-border-width: 0 0 0 1;");
+
+        // 1. Info Panel (горе)
+        GridPane infoPanel = new GridPane();
+        infoPanel.setHgap(10);
+        infoPanel.setVgap(5);
+        lblTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        
+        infoPanel.add(lblTitle, 0, 0, 2, 1);
+        infoPanel.add(new Separator(), 0, 1, 2, 1);
+        infoPanel.add(new Label("ID:"), 0, 2); infoPanel.add(lblId, 1, 2);
+        infoPanel.add(new Label("Name:"), 0, 3); infoPanel.add(lblName, 1, 3);
+        infoPanel.add(new Label("Activity:"), 0, 4); infoPanel.add(lblActivity, 1, 4);
+        infoPanel.add(new Label("Interactions:"), 0, 5); infoPanel.add(lblInteraction, 1, 5);
+        infoPanel.add(new Label("Projects:"), 0, 6); infoPanel.add(lblProjects, 1, 6);
+
+        // 2. Log Area
+        infoArea.setPrefHeight(60);
+        infoArea.setWrapText(true);
+        infoArea.setEditable(false);
+
+        // 3. TABLE VIEW (Настроена по снимката)
+        Label lblTable = new Label("Node Data (CSV Format)");
+        lblTable.setStyle("-fx-font-weight: bold;");
+        
+        setupTableColumns(); // Метод за настройка на колоните
+
+        VBox.setVgrow(resultTable, Priority.ALWAYS); // Таблицата да заема останалото място
+
+        box.getChildren().addAll(infoPanel, infoArea, new Separator(), lblTable, resultTable);
+        return box;
+    }
+
+    // --- НАСТРОЙКА НА КОЛОНИТЕ (ПО СНИМКАТА) ---
+    private void setupTableColumns() {
+        // 1. DugumId
+        TableColumn<Node, Number> colId = new TableColumn<>("ID");
+        colId.setCellValueFactory(cell -> new javafx.beans.property.SimpleIntegerProperty(cell.getValue().id));
+        colId.setPrefWidth(40);
+
+        // 2. Ozellik_I (Aktiflik)
+        TableColumn<Node, Number> colActivity = new TableColumn<>("Aktiflik");
+        colActivity.setCellValueFactory(cell -> new javafx.beans.property.SimpleDoubleProperty(cell.getValue().activity));
+        colActivity.setPrefWidth(60);
+
+        // 3. Ozellik_II (Etkilesim)
+        TableColumn<Node, Number> colInteraction = new TableColumn<>("Etkilesim");
+        colInteraction.setCellValueFactory(cell -> new javafx.beans.property.SimpleIntegerProperty(cell.getValue().interaction));
+        colInteraction.setPrefWidth(70);
+
+        // 4. Ozellik_III (Bagl. Sayisi / Projects)
+        TableColumn<Node, Number> colProjects = new TableColumn<>("Projeler");
+        colProjects.setCellValueFactory(cell -> new javafx.beans.property.SimpleIntegerProperty(cell.getValue().projects));
+        colProjects.setPrefWidth(60);
+
+        // 5. Komsular (Neighbors) - ИЗЧИСЛЯВА СЕ ДИНАМИЧНО
+        TableColumn<Node, String> colNeighbors = new TableColumn<>("Komsular");
+        colNeighbors.setCellValueFactory(cell -> {
+            Node currentNode = cell.getValue();
+            List<String> neighborIds = new ArrayList<>();
+            
+            // Търсим в edges всички връзки с този Node
+            for (Edge e : graph.edges) {
+                if (e.source == currentNode) {
+                    neighborIds.add(String.valueOf(e.target.id));
+                } else if (e.target == currentNode) {
+                    neighborIds.add(String.valueOf(e.source.id));
+                }
+            }
+            // Връщаме ги като стринг: "2, 4, 5"
+            String res = String.join(", ", neighborIds);
+            return new SimpleStringProperty(res.isEmpty() ? "-" : res);
+        });
+        colNeighbors.setPrefWidth(120);
+
+        resultTable.getColumns().clear();
+        resultTable.getColumns().addAll(colId, colActivity, colInteraction, colProjects, colNeighbors);
+    }
+
+    private void setFullWidth(Button... buttons) {
+        for (Button b : buttons) {
+            b.setMaxWidth(Double.MAX_VALUE);
+        }
+    }
+
+    private MenuBar createMenuBar(Stage stage) {
+        MenuBar menuBar = new MenuBar();
+        Menu menuFile = new Menu("File");
+        MenuItem itemOpen = new MenuItem("Open JSON...");
+        MenuItem itemSave = new MenuItem("Save JSON...");
+        MenuItem itemExit = new MenuItem("Exit");
+        
+        Menu menuTools = new Menu("Tools");
+        MenuItem itemGenerate = new MenuItem("Generate Random Data...");
+
+        itemOpen.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
+            File file = fileChooser.showOpenDialog(stage);
+            if (file != null) {
+                JsonLoader.load(file.getAbsolutePath(), graph);
+                infoArea.setText("Loaded: " + file.getName());
+                resetSelection();
+            }
+        });
+
+        itemSave.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setInitialFileName("data.json");
+            File file = fileChooser.showSaveDialog(stage);
+            if (file != null) JsonLoader.save(file.getAbsolutePath(), graph);
+        });
+
+        itemGenerate.setOnAction(e -> {
+            graphController.generateRandomData(canvas.getWidth(), canvas.getHeight(), 20);
+            resetSelection();
+        });
+        itemExit.setOnAction(e -> System.exit(0));
+
+        menuFile.getItems().addAll(itemOpen, itemSave, new SeparatorMenuItem(), itemExit);
+        menuTools.getItems().add(itemGenerate);
+        menuBar.getMenus().addAll(menuFile, menuTools);
+        return menuBar;
+    }
+
+    private void setupEvents(Stage stage) {
+        // Контекстно меню (десен бутон)
         ContextMenu contextMenu = new ContextMenu();
-        MenuItem itemAddNode = new MenuItem("Add Person Here");
-        MenuItem itemEditNode = new MenuItem("Edit Person");
-        MenuItem itemDeleteNode = new MenuItem("Delete Person");
+        MenuItem itemAddNode = new MenuItem("Add Person");
+        MenuItem itemEditNode = new MenuItem("Edit Properties");
+        MenuItem itemDeleteNode = new MenuItem("Delete");
+
         contextMenu.getItems().addAll(itemAddNode, itemEditNode, itemDeleteNode);
 
         canvas.setOnContextMenuRequested(e -> {
             Node clickedNode = interactionController.findNodeAt(e.getX(), e.getY());
-
             if (clickedNode != null) {
                 itemAddNode.setVisible(false);
                 itemEditNode.setVisible(true);
@@ -256,31 +346,29 @@ public class Main extends Application {
                 itemEditNode.setOnAction(ev -> {
                     NodeFormDialog.open(clickedNode, false, graph, infoArea, this::draw);
                     showNodeInfo(clickedNode);
+                    resultTable.refresh();
                 });
-                
                 itemDeleteNode.setOnAction(ev -> {
                     graph.removeNode(clickedNode);
                     if (state.selected1 == clickedNode) state.selected1 = null;
                     if (state.selected2 == clickedNode) state.selected2 = null;
                     clearNodeInfo();
                     draw();
-                    infoArea.setText("Deleted: " + clickedNode.name);
+                    refreshTable();
                 });
-
             } else {
                 itemAddNode.setVisible(true);
                 itemEditNode.setVisible(false);
                 itemDeleteNode.setVisible(false);
-
                 itemAddNode.setOnAction(ev -> {
-                    Node newNode = new Node(graphController.getNextId(), "New Employee", e.getX(), e.getY(), 5.0, 50, 5);
+                    Node newNode = new Node(graphController.getNextId(), "New", e.getX(), e.getY(), 0.5, 10, 2);
                     NodeFormDialog.open(newNode, true, graph, infoArea, this::draw);
+                    refreshTable();
                 });
             }
             contextMenu.show(canvas, e.getScreenX(), e.getScreenY());
         });
 
-        // --- 7. MOUSE EVENTS ---
         canvas.setOnMouseMoved(e -> {
             Node hovered = interactionController.findNodeAt(e.getX(), e.getY());
             canvas.setCursor(hovered != null ? Cursor.HAND : Cursor.DEFAULT);
@@ -297,33 +385,16 @@ public class Main extends Application {
                 interactionController.handleClick(e.getX(), e.getY(), state, highlightedNodes);
                 if (!state.isConnectMode && state.selected1 != null) {
                     showNodeInfo(state.selected1);
+                    // Избираме реда в таблицата също
+                    resultTable.getSelectionModel().select(state.selected1);
+                    resultTable.scrollTo(state.selected1);
                 }
                 draw();
             }
         });
-
-        Scene scene = new Scene(root, 1000, 800); // Малко по-висок прозорец заради таблицата
-        scene.setOnKeyPressed(e -> {
-            if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
-                interactionController.resetConnectMode(state);
-                draw();
-            }
-        });
-
-        primaryStage.setTitle("HR Social Network Analysis");
-        primaryStage.setScene(scene);
-        primaryStage.setMaximized(true);
-        primaryStage.show();
-
-        draw();
     }
 
-    // -------------------------------------------------------------------------
-    // UI Helpers (Right Panel)
-    // -------------------------------------------------------------------------
-
     private void showNodeInfo(Node n) {
-        lblTitle.setText("Employee Info");
         lblId.setText(String.valueOf(n.id));
         lblName.setText(n.name);
         lblActivity.setText(String.valueOf(n.activity));
@@ -332,12 +403,8 @@ public class Main extends Application {
     }
 
     private void clearNodeInfo() {
-        lblTitle.setText("Select a person");
-        lblId.setText("-");
-        lblName.setText("-");
-        lblActivity.setText("-");
-        lblInteraction.setText("-");
-        lblProjects.setText("-");
+        lblId.setText("-"); lblName.setText("-");
+        lblActivity.setText("-"); lblInteraction.setText("-"); lblProjects.setText("-");
     }
 
     private void resetSelection() {
@@ -347,19 +414,18 @@ public class Main extends Application {
         highlightedNodes.clear();
         for (Node n : graph.nodes) n.colorIndex = 0;
         
-        resultTable.getItems().clear(); // Чистим и таблицата при ресет
+        refreshTable();
         clearNodeInfo();
+    }
+    
+    private void refreshTable() {
+        resultTable.getItems().clear();
+        resultTable.getItems().addAll(graph.nodes);
+        resultTable.refresh();
     }
 
     private void draw() {
-        renderer.draw(
-            graph,
-            highlightedNodes,
-            state.selected1,
-            state.selected2,
-            state.isConnectMode,
-            mouseX,
-            mouseY
-        );
+        renderer.draw(graph, highlightedNodes, state.selected1, state.selected2, 
+                      state.isConnectMode, mouseX, mouseY);
     }
 }
