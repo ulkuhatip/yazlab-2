@@ -14,7 +14,9 @@ import javafx.stage.Stage;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Main extends Application {
@@ -63,7 +65,7 @@ public class Main extends Application {
         renderer = new GraphRenderer(canvas);
         interactionController = new InteractionController(graph, infoArea);
         animationManager = new AnimationManager();
-        graphController = new GraphController(graph, infoArea, animationManager, resultTable, this::draw);
+        graphController = new GraphController(graph, infoArea, animationManager, this::draw, this::updateTableContent);
 
         BorderPane root = new BorderPane();
 
@@ -177,13 +179,15 @@ public class Main extends Application {
         
         btnComponents.setOnAction(e -> graphController.runComponents());
         btnColor.setOnAction(e -> graphController.runColoring());
-        btnCentrality.setOnAction(e -> graphController.runCentrality());
+       // Подаваме списъка, за да може контролерът да го напълни с топ лидерите
+btnCentrality.setOnAction(e -> graphController.runCentrality(highlightedNodes));
 
-        btnReset.setOnAction(e -> {
-            resetSelection();
-            draw();
-            infoArea.setText("View cleared.");
-        });
+       btnReset.setOnAction(e -> {
+    resetSelection();
+    draw();
+    updateTableContent(); // Ще върне пълния списък
+    infoArea.setText("View cleared.");
+});
         
         btnAddEdge.setOnAction(e -> {
             interactionController.startConnectMode(state, highlightedNodes);
@@ -248,7 +252,6 @@ public class Main extends Application {
         return box;
     }
 
-    // --- НАСТРОЙКА НА КОЛОНИТЕ (ПО СНИМКАТА) ---
     private void setupTableColumns() {
         // 1. DugumId
         TableColumn<Node, Number> colId = new TableColumn<>("ID");
@@ -268,21 +271,24 @@ public class Main extends Application {
         colProjects.setPrefWidth(60);
 
         TableColumn<Node, String> colNeighbors = new TableColumn<>("Komsular");
-        colNeighbors.setCellValueFactory(cell -> {
-            Node currentNode = cell.getValue();
-            List<String> neighborIds = new ArrayList<>();
-            
-            for (Edge e : graph.edges) {
-                if (e.source == currentNode) {
-                    neighborIds.add(String.valueOf(e.target.id));
-                } else if (e.target == currentNode) {
-                    neighborIds.add(String.valueOf(e.source.id));
-                }
-            }
-            String res = String.join(", ", neighborIds);
-            return new SimpleStringProperty(res.isEmpty() ? "-" : res);
-        });
-        colNeighbors.setPrefWidth(120);
+colNeighbors.setCellValueFactory(cell -> {
+    Node currentNode = cell.getValue();
+    
+    // Използваме LinkedHashSet, за да няма дубликати и да пази реда на добавяне
+    Set<String> uniqueNeighbors = new LinkedHashSet<>();
+    
+    for (Edge e : graph.edges) {
+
+        if (e.source == currentNode) {
+            uniqueNeighbors.add(String.valueOf(e.target.id));
+        }
+        
+    }
+    
+    String res = String.join(", ", uniqueNeighbors);
+    return new SimpleStringProperty(res.isEmpty() ? "-" : res);
+});
+colNeighbors.setPrefWidth(120);
 
         resultTable.getColumns().clear();
         resultTable.getColumns().addAll(colId, colActivity, colInteraction, colProjects, colNeighbors);
@@ -322,10 +328,36 @@ public class Main extends Application {
             if (file != null) JsonLoader.save(file.getAbsolutePath(), graph);
         });
 
-        itemGenerate.setOnAction(e -> {
-            graphController.generateRandomData(canvas.getWidth(), canvas.getHeight(), 20);
-            resetSelection();
-        });
+       itemGenerate.setOnAction(e -> {
+    TextInputDialog dialog = new TextInputDialog("20"); 
+    dialog.setTitle("Generate Random Graph");
+    dialog.setHeaderText("Generation Settings");
+    dialog.setContentText("Please enter the number of employees:");
+
+    dialog.showAndWait().ifPresent(input -> {
+        try {
+            int count = Integer.parseInt(input);
+            
+            if (count > 0 && count <= 2000) {
+                graphController.generateRandomData(canvas.getWidth(), canvas.getHeight(), count);
+                resetSelection(); 
+                infoArea.setText("Generated " + count + " random nodes.");
+            } else {
+                Alert alert = new Alert(Alert.AlertType.WARNING);
+                alert.setTitle("Invalid Input");
+                alert.setHeaderText(null);
+                alert.setContentText("Please enter a number between 1 and 2000.");
+                alert.showAndWait();
+            }
+        } catch (NumberFormatException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Error");
+            alert.setHeaderText("Invalid Number");
+            alert.setContentText("Please enter a valid integer number.");
+            alert.showAndWait();
+        }
+    });
+});
         itemExit.setOnAction(e -> System.exit(0));
 
         menuFile.getItems().addAll(itemOpen, itemSave, new SeparatorMenuItem(), itemExit);
@@ -349,11 +381,20 @@ public class Main extends Application {
                 itemEditNode.setVisible(true);
                 itemDeleteNode.setVisible(true);
 
-                itemEditNode.setOnAction(ev -> {
-                    NodeFormDialog.open(clickedNode, false, graph, infoArea, this::draw);
-                    showNodeInfo(clickedNode);
-                    resultTable.refresh();
-                });
+               itemEditNode.setOnAction(ev -> {
+    // 1. Отваряме диалога (той блокира докато не се затвори)
+    NodeFormDialog.open(clickedNode, false, graph, infoArea, this::draw);
+    
+    // 2. Обновяваме инфо панела
+    showNodeInfo(clickedNode);
+    
+    // 3. ВАЖНО: Принудително обновяване на таблицата
+    // Дори данните в списъка да са същите, refresh() кара клетките да си прочетат новите имена/числа
+    resultTable.refresh(); 
+    
+    // 4. Ако сме във Focus Mode, може да се наложи пренареждане на данните
+    updateTableContent(); 
+});
                 itemDeleteNode.setOnAction(ev -> {
                     graph.removeNode(clickedNode);
                     if (state.selected1 == clickedNode) state.selected1 = null;
@@ -386,18 +427,23 @@ public class Main extends Application {
         });
 
         canvas.setOnMouseClicked(e -> {
-            contextMenu.hide();
-            if (e.getButton() == MouseButton.PRIMARY) {
-                interactionController.handleClick(e.getX(), e.getY(), state, highlightedNodes);
-                if (!state.isConnectMode && state.selected1 != null) {
-                    showNodeInfo(state.selected1);
-                    // Избираме реда в таблицата също
-                    resultTable.getSelectionModel().select(state.selected1);
-                    resultTable.scrollTo(state.selected1);
-                }
-                draw();
-            }
-        });
+    contextMenu.hide();
+    if (e.getButton() == MouseButton.PRIMARY) {
+        interactionController.handleClick(e.getX(), e.getY(), state, highlightedNodes);
+        
+        if (!state.isConnectMode && state.selected1 != null) {
+            showNodeInfo(state.selected1);
+            // НЕ селектираме реда в таблицата автоматично, за да не счупим филтъра,
+            // но обновяваме съдържанието:
+        }
+        
+        // ТУК Е КЛЮЧЪТ: Всеки клик преизчислява какво да се вижда в таблицата
+        updateTableContent(); 
+        
+        draw();
+    }
+});
+    
     }
 
     private void showNodeInfo(Node n) {
@@ -430,6 +476,42 @@ public class Main extends Application {
         resultTable.refresh();
     }
 
+
+    // Този метод е "мозъкът" на таблицата
+private void updateTableContent() {
+    resultTable.getItems().clear();
+
+    // 1. СЛУЧАЙ: Имаме резултат от алгоритъм (highlightedNodes не е празен)
+    // Това е най-висок приоритет - ако сме пуснали търсене, искаме да видим резултата.
+    if (!highlightedNodes.isEmpty()) {
+        resultTable.getItems().addAll(highlightedNodes);
+        return;
+    }
+
+    // 2. СЛУЧАЙ: Селектиран е само 1 човек (Focus Mode)
+    // Искаш да виждаш него и съседите му
+    if (state.selected1 != null && state.selected2 == null) {
+        // Използваме Set, за да избегнем дубликати, ако има двупосочни връзки
+        Set<Node> viewData = new LinkedHashSet<>();
+        
+        viewData.add(state.selected1); // Добавяме главния герой
+        
+        // Намираме съседите
+        for (Edge e : graph.edges) {
+            // Тъй като пазим и двете посоки, достатъчно е да видим source
+            if (e.source == state.selected1) {
+                viewData.add(e.target);
+            }
+        }
+        
+        resultTable.getItems().addAll(viewData);
+        return;
+    }
+
+    // 3. СЛУЧАЙ: По подразбиране (Default)
+    // Няма активен алгоритъм и няма специална селекция -> покажи всичко
+    resultTable.getItems().addAll(graph.nodes);
+}
     private void draw() {
         renderer.draw(graph, highlightedNodes, state.selected1, state.selected2, 
                       state.isConnectMode, mouseX, mouseY);

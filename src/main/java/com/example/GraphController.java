@@ -1,7 +1,6 @@
 package com.example;
 
 import javafx.scene.control.Alert;
-import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import java.util.List;
 import java.util.Random;
@@ -11,42 +10,39 @@ public class GraphController {
     private final Graph graph;
     private final TextArea infoArea;
     private final AnimationManager animationManager;
-    private final TableView<Node> resultTable; // Таблицата за визуализация на резултати
-    private final Runnable redrawCallback;     // Метод за прерисуване (Main::draw)
+    
+    // ВЕЧЕ НЕ пазим таблицата тук (Separation of Concerns)
+    // private final TableView<Node> resultTable; 
+    
+    private final Runnable redrawCallback;      // За прерисуване на Canvas
+    private final Runnable tableUpdateCallback; // НОВО: За обновяване на Таблицата
 
+    // Конструкторът приема Runnable вместо TableView
     public GraphController(Graph graph, TextArea infoArea, AnimationManager animationManager, 
-                           TableView<Node> resultTable, Runnable redrawCallback) {
+                           Runnable redrawCallback, Runnable tableUpdateCallback) {
         this.graph = graph;
         this.infoArea = infoArea;
         this.animationManager = animationManager;
-        this.resultTable = resultTable;
         this.redrawCallback = redrawCallback;
-    }
-
-    // Помощен метод за обновяване на данните в таблицата
-    private void updateTable(List<Node> nodes) {
-        resultTable.getItems().clear();
-        if (nodes != null) {
-            resultTable.getItems().addAll(nodes);
-        }
+        this.tableUpdateCallback = tableUpdateCallback;
     }
 
     public void runBFS(InteractionState state, List<Node> highlightedNodes) {
         if (state.selected1 != null) {
-            // Изпълняваме алгоритъма
+            long startTime = System.nanoTime();
             List<Node> results = GraphAlgorithms.runBFS(graph, state.selected1);
-            
-            // Обновяваме списъка за оцветяване
+            long endTime = System.nanoTime();
+
+            // Обновяваме списъка, който Main гледа, за да попълни таблицата
             highlightedNodes.clear();
             highlightedNodes.addAll(results);
             
-            // Лог в текстовото поле
             infoArea.setText("BFS: Found " + highlightedNodes.size() + " reachable people from " + state.selected1.name);
+            double duration = (endTime - startTime) / 1_000_000.0;
+            infoArea.appendText("\nTime: " + String.format("%.4f", duration) + " ms");
             
-            // Показваме резултата в таблицата
-            updateTable(highlightedNodes);
-            
-            // Прерисуваме екрана
+            // КЛЮЧОВ МОМЕНТ: Казваме на Main да се обнови
+            tableUpdateCallback.run(); 
             redrawCallback.run();
         } else {
             infoArea.setText("Select 1 person to start BFS.");
@@ -55,14 +51,18 @@ public class GraphController {
 
     public void runDFS(InteractionState state, List<Node> highlightedNodes) {
         if (state.selected1 != null) {
+            long startTime = System.nanoTime();
             List<Node> results = GraphAlgorithms.runDFS(graph, state.selected1);
-            
+            long endTime = System.nanoTime();
+
             highlightedNodes.clear();
             highlightedNodes.addAll(results);
             
             infoArea.setText("DFS: Found " + highlightedNodes.size() + " reachable people from " + state.selected1.name);
+            double duration = (endTime - startTime) / 1_000_000.0;
+            infoArea.appendText("\nTime: " + String.format("%.4f", duration) + " ms");
             
-            updateTable(highlightedNodes);
+            tableUpdateCallback.run();
             redrawCallback.run();
         } else {
             infoArea.setText("Select 1 person to start DFS.");
@@ -71,18 +71,24 @@ public class GraphController {
 
     public void runDijkstra(InteractionState state, List<Node> highlightedNodes) {
         if (state.selected1 != null && state.selected2 != null) {
+            long startTime = System.nanoTime();
             List<Node> path = GraphAlgorithms.runDijkstra(graph, state.selected1, state.selected2);
-            
+            long endTime = System.nanoTime();
+
             if (path.isEmpty()) {
                 infoArea.setText("No path found.");
                 highlightedNodes.clear();
-                updateTable(null); // Чистим таблицата
+                
+                tableUpdateCallback.run();
                 redrawCallback.run();
             } else {
                 infoArea.setText("Dijkstra Path: " + path.size() + " steps. Animating...");
+                double duration = (endTime - startTime) / 1_000_000.0;
+                infoArea.appendText("\nTime: " + String.format("%.4f", duration) + " ms");
                 
-                // Показваме пътя в таблицата веднага
-                updateTable(path);
+                // Тук не пълним highlightedNodes веднага, защото анимацията ще го прави стъпка по стъпка.
+                // Но викаме update, за да се изчисти таблицата или да покаже начално състояние.
+                tableUpdateCallback.run();
                 
                 // Стартираме анимацията
                 animationManager.animatePath(path, highlightedNodes, redrawCallback);
@@ -94,16 +100,22 @@ public class GraphController {
 
     public void runAStar(InteractionState state, List<Node> highlightedNodes) {
         if (state.selected1 != null && state.selected2 != null) {
+            long startTime = System.nanoTime();
             List<Node> path = GraphAlgorithms.runAStar(graph, state.selected1, state.selected2);
+            long endTime = System.nanoTime();
             
             if (path.isEmpty()) {
                 infoArea.setText("No path found.");
                 highlightedNodes.clear();
-                updateTable(null);
+                
+                tableUpdateCallback.run();
                 redrawCallback.run();
             } else {
                 infoArea.setText("A* Path: " + path.size() + " steps. Animating...");
-                updateTable(path);
+                double duration = (endTime - startTime) / 1_000_000.0;
+                infoArea.appendText("\nTime: " + String.format("%.4f", duration) + " ms");
+                
+                tableUpdateCallback.run();
                 animationManager.animatePath(path, highlightedNodes, redrawCallback);
             }
         } else {
@@ -130,13 +142,21 @@ public class GraphController {
             double timeA = (endA - startA) / 1_000_000.0;
             result.append(String.format("🔸 A* (A-Star):\n   Time: %.4f ms\n   Steps: %d\n\n", timeA, pathA.size()));
 
-            // 3. BFS (за достъпност)
+            // 3. BFS
             long startBFS = System.nanoTime();
             List<Node> reachBFS = GraphAlgorithms.runBFS(graph, state.selected1);
             boolean canReach = reachBFS.contains(state.selected2);
             long endBFS = System.nanoTime();
             double timeBFS = (endBFS - startBFS) / 1_000_000.0;
             result.append(String.format("🔹 BFS (Scan):\n   Time: %.4f ms\n   Reachable: %s\n", timeBFS, canReach ? "YES" : "NO"));
+
+            // 4. DFS
+            long startDFS = System.nanoTime();
+            List<Node> reachDFS = GraphAlgorithms.runDFS(graph, state.selected1);
+            boolean canReachDFS = reachDFS.contains(state.selected2);
+            long endDFS = System.nanoTime();
+            double timeDFS = (endDFS - startDFS) / 1_000_000.0;
+            result.append(String.format("🔸 DFS (Scan):\n   Time: %.4f ms\n   Reachable: %s\n", timeDFS, canReachDFS ? "YES" : "NO"));
 
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
             alert.setTitle("Performance Benchmark");
@@ -152,36 +172,44 @@ public class GraphController {
         int count = GraphAlgorithms.countAndColorComponents(graph);
         infoArea.setText("Found " + count + " disconnected communities (Islands). They are now colored.");
         
-        // Показваме всички, за да се види оцветяването
-        updateTable(graph.nodes);
+        // Тук highlightedNodes не се променя, което значи, че Main 
+        // ще покаже всички нодове в таблицата (както е редно за този изглед).
+        tableUpdateCallback.run();
         redrawCallback.run();
     }
 
     public void runColoring() {
         GraphAlgorithms.runColoring(graph);
         infoArea.setText("Graph colored using Welsh-Powell algorithm.");
-        updateTable(graph.nodes);
+        
+        tableUpdateCallback.run();
         redrawCallback.run();
     }
 
-    public void runCentrality() {
+    // ВНИМАНИЕ: Промених метода да приема highlightedNodes, 
+    // за да може таблицата да покаже само топ лидерите.
+    public void runCentrality(List<Node> highlightedNodes) {
         List<Node> top = GraphAlgorithms.getTopCentrality(graph);
         
         // Нулираме цветовете
         for (Node n : graph.nodes) n.colorIndex = 0;
+        highlightedNodes.clear();
 
         if (!top.isEmpty()) {
             StringBuilder sb = new StringBuilder("Top 5 Influencers:\n");
             int count = Math.min(5, top.size());
+            
             for (int i = 0; i < count; i++) {
                 Node n = top.get(i);
                 n.colorIndex = i + 1; // Оцветяваме топ лидерите
                 sb.append(String.format("%d. %s (%d connections)\n", i + 1, n.name, graph.getDegree(n)));
+                
+                // Добавяме ги в списъка за показване, за да ги видиш в таблицата
+                highlightedNodes.add(n);
             }
             infoArea.setText(sb.toString());
             
-            // В таблицата показваме само топ лидерите
-            updateTable(top.subList(0, count));
+            tableUpdateCallback.run();
             redrawCallback.run();
         }
     }
@@ -213,11 +241,10 @@ public class GraphController {
         }
         
         infoArea.setText("Generated " + count + " random employees.");
-        updateTable(graph.nodes); // Показваме всички нови в таблицата
+        tableUpdateCallback.run();
         redrawCallback.run();
     }
 
-    // Helper за намиране на следващо ID при ръчно добавяне
     public int getNextId() {
         int max = 0;
         for (Node n : graph.nodes) if (n.id > max) max = n.id;

@@ -133,13 +133,18 @@ public class GraphRenderer {
     }
 
     private Color getColorByIndex(int index) {
-        switch (index % 6) {
-            case 1: return Color.TOMATO;
-            case 2: return Color.VIOLET;
-            case 3: return Color.LIMEGREEN;
-            case 4: return Color.GOLD;
-            case 5: return Color.CYAN;
-            default: return Color.GRAY;
-        }
+       switch (index % 10) {
+    case 1: return Color.TOMATO;
+    case 2: return Color.VIOLET;
+    case 3: return Color.LIMEGREEN;
+    case 4: return Color.GOLD;
+    case 5: return Color.CYAN;
+    case 6: return Color.CORNFLOWERBLUE;
+    case 7: return Color.ORANGE;
+    case 8: return Color.HOTPINK;
+    case 9: return Color.MEDIUMSEAGREEN;
+    default: return Color.GRAY;
+}
+
     }
 }
