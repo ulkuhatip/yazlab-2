@@ -1,0 +1,10 @@
+{
+  "nodes": [
+    { "id": 1, "name": "Emp 1", "activity": 0.85, "interaction": 12, "projects": 3 },
+    { "id": 2, "name": "Emp 2", "activity": 0.40, "interaction": 5, "projects": 2 },
+    { "id": 2, "name": "Emp 3", "activity": 0.60, "interaction": 7, "projects": 3 }
+  ],
+  "edges": [
+    { "source": 1, "target": 2 }
+  ]
+}

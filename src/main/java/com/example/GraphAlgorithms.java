@@ -183,34 +183,55 @@ public class GraphAlgorithms {
     }
 
     // === COMPATIBILITY METHOD (Main.java için) ===
-    public static int countAndColorComponents(Graph graph) {
+   public static int countAndColorComponents(Graph graph) {
 
-        List<Node> visitedAll = new ArrayList<>();
-        int count = 0;
-        int colorIndex = 1;
+    // Her şeyi önce sıfırla
+    for (Node n : graph.nodes) {
+        n.colorIndex = 0;
+    }
 
-        // Reset colors
-        for (Node n : graph.nodes) {
-            n.colorIndex = 0;
-        }
+    Set<Node> visited = new HashSet<>();
+    int components = 0;
+    int color = 1;
 
-        for (Node n : graph.nodes) {
-            if (!visitedAll.contains(n)) {
-                count++;
+    for (Node start : graph.nodes) {
+        if (visited.contains(start)) continue;
 
-                // Island via BFS
-                List<Node> island = runBFS(graph, n);
-                visitedAll.addAll(island);
+        // Yeni bileşen
+        components++;
 
-                // Color island
-                for (Node islandNode : island) {
-                    islandNode.colorIndex = (colorIndex % 6) + 1;
+        // BFS ile bu bileşendeki tüm nodeları bul
+        Queue<Node> q = new LinkedList<>();
+        q.add(start);
+        visited.add(start);
+
+        while (!q.isEmpty()) {
+            Node u = q.poll();
+
+            // Bu node'u bileşen rengine boya
+            u.colorIndex = color;
+
+            // Komşuları bul (Graph'in çift edge yapısına uyumlu)
+            for (Edge e : graph.edges) {
+                Node v = null;
+
+                if (e.source == u) v = e.target;
+                else if (e.target == u) v = e.source;
+                else continue;
+
+                if (!visited.contains(v)) {
+                    visited.add(v);
+                    q.add(v);
                 }
-
-                colorIndex++;
             }
         }
-        return count;
-}
 
+        // Sonraki bileşen farklı renk alsın
+        color++;
+        // Çok renk yoksa döndür (istersen kaldır)
+        if (color > 12) color = 1;
+    }
+
+    return components;
+}
 }

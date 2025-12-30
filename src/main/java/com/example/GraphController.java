@@ -250,4 +250,17 @@ public class GraphController {
         for (Node n : graph.nodes) if (n.id > max) max = n.id;
         return max + 1;
     }
+
+    public void repositionNodesIfNeeded(double width, double height) {
+    double margin = 40;
+
+    for (Node n : graph.nodes) {
+        // Eğer node canvas dışındaysa veya köşeye yapışmışsa
+        if (n.x < margin || n.y < margin || n.x > width - margin || n.y > height - margin) {
+            n.x = margin + Math.random() * (width - 2 * margin);
+            n.y = margin + Math.random() * (height - 2 * margin);
+        }
+    }
+}
+
 }

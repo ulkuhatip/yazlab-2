@@ -11,6 +11,9 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Alert;
+
 
 import java.io.File;
 import java.util.ArrayList;
@@ -312,14 +315,47 @@ colNeighbors.setPrefWidth(120);
 
         itemOpen.setOnAction(e -> {
             FileChooser fileChooser = new FileChooser();
-            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
+            fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("JSON Files", "*.json")
+            );
+
             File file = fileChooser.showOpenDialog(stage);
             if (file != null) {
-                JsonLoader.load(file.getAbsolutePath(), graph);
-                infoArea.setText("Loaded: " + file.getName());
-                resetSelection();
+                try {
+                    JsonLoader.load(file.getAbsolutePath(), graph);
+                    graphController.repositionNodesIfNeeded(
+                    canvas.getWidth(),
+                    canvas.getHeight()
+                    );
+
+                    // ✅ başarılı yükleme
+                    infoArea.setText("Loaded: " + file.getName());
+                    resetSelection();
+                    draw(); 
+
+                } catch (IllegalArgumentException ex) {
+
+                    // 🔴 HATALI JSON → HER ŞEYİ TEMİZLE
+                    graph.nodes.clear();
+                    graph.edges.clear();
+
+                    resetSelection();
+
+                    // canvas temizle
+                    GraphicsContext gc = canvas.getGraphicsContext2D();
+                    gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
+
+                    infoArea.setText("JSON yüklenemedi: " + file.getName());
+
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Veri Yükleme Hatası");
+                    alert.setHeaderText("Geçersiz JSON Dosyası");
+                    alert.setContentText(ex.getMessage());
+                    alert.showAndWait();
+                }
             }
         });
+
 
         itemSave.setOnAction(e -> {
             FileChooser fileChooser = new FileChooser();

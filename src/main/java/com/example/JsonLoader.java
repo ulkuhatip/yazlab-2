@@ -9,15 +9,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.HashSet;
+import java.util.Set;
+
 
 public class JsonLoader {
-    
+
     // --- LOAD JSON (Using Regex for stability) ---
     public static void load(String filePath, Graph graph) {
         // 1. Clear previous data
         graph.nodes.clear();
         graph.edges.clear();
         
+        Set<Integer> seenIds = new HashSet<>(); 
+
         try {
             File f = new File(filePath);
             if (!f.exists()) {
@@ -32,23 +37,41 @@ public class JsonLoader {
             // [REGEX USED HERE] 
             // We use Regex to extract node properties. 
             // \s* allows for any amount of whitespace, making it robust against formatting changes.
-            Pattern nodePattern = Pattern.compile("\\{\\s*\"id\":\\s*(\\d+),\\s*\"name\":\\s*\"(.*?)\",\\s*\"x\":\\s*([\\d\\.]+),\\s*\"y\":\\s*([\\d\\.]+),\\s*\"activity\":\\s*([\\d\\.]+),\\s*\"interaction\":\\s*(\\d+),\\s*\"projects\":\\s*(\\d+)");
+           // 1. Regex'i koordinatları beklemeyecek şekilde sadeleştiriyoruz:
+            // Sadece id, name, activity, interaction ve projects alanlarını arar.
+            Pattern nodePattern = Pattern.compile("\\{\\s*\"id\":\\s*(\\d+),\\s*\"name\":\\s*\"(.*?)\",\\s*\"activity\":\\s*([\\d\\.]+),\\s*\"interaction\":\\s*(\\d+),\\s*\"projects\":\\s*(\\d+)");
             Matcher nodeMatcher = nodePattern.matcher(content);
 
             while (nodeMatcher.find()) {
                 try {
                     int id = Integer.parseInt(nodeMatcher.group(1));
-                    String name = nodeMatcher.group(2);
-                    double x = Double.parseDouble(nodeMatcher.group(3));
-                    double y = Double.parseDouble(nodeMatcher.group(4));
-                    double act = Double.parseDouble(nodeMatcher.group(5));
-                    int inter = Integer.parseInt(nodeMatcher.group(6));
-                    int proj = Integer.parseInt(nodeMatcher.group(7));
 
-                    graph.addNode(new Node(id, name, x, y, act, inter, proj));
+                    // JSON yükleme döngüsü içinde
+                    if (!seenIds.add(id)) {
+                        // Sadece konsola yazma, kullanıcıya göster
+                        javafx.application.Platform.runLater(() -> {
+                            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
+                            alert.setTitle("Veri Hatası");
+                            alert.setHeaderText("Tekrar Eden ID Tespit Edildi");
+                            alert.setContentText("ID: " + id + " zaten mevcut. Lütfen JSON dosyasını kontrol edin.");
+                            alert.showAndWait();
+                        });
+                        continue; // Bu hatalı düğümü atla
+}
+
+                    String name = nodeMatcher.group(2);
+                    double act = Double.parseDouble(nodeMatcher.group(3));
+                    int inter = Integer.parseInt(nodeMatcher.group(4));
+                    int proj = Integer.parseInt(nodeMatcher.group(5));
+
+                    // Koordinatlar JSON'da olmadığı için burada rastgele oluşturuyoruz
+                    // 50 ile 750 arası X, 50 ile 550 arası Y (Canvas boyutuna göre)
+                    double randomX = 50 + (Math.random() * 700); 
+                    double randomY = 50 + (Math.random() * 500); 
+
+                    graph.addNode(new Node(id, name, randomX, randomY, act, inter, proj));
                 } catch (Exception e) {
-                    // TRANSLATED: Error parsing specific node
-                    System.out.println("Error parsing node: " + e.getMessage());
+                    System.out.println("Düğüm ayrıştırma hatası: " + e.getMessage());
                 }
             }
             // TRANSLATED: Success message
