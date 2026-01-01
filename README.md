@@ -236,15 +236,10 @@ flowchart TD
 
 ### Uygulama Ekran Görüntüleri
 
-**Algoritma Performans Karşılaştırması (Compare All)**  
-![Performance Benchmark](images/performance_benchmark.png)
+![Performance Benchmark](performance_benchmark.png)
+![Welsh-Powell Coloring](welsh_powell_coloring.png)
+![Dijkstra Path](dijkstra_path.png)
 
-**Welsh–Powell Graf Renklendirme Sonucu**  
-![Welsh-Powell Coloring](images/welsh_powell_coloring.png)
-
-**Dijkstra En Kısa Yol Animasyonu (Dinamik Ağırlıklar)**  
-![Dijkstra Path](images/dijkstra_path.png)
----
 
 ## 9. Sonuç ve Tartışma
 
