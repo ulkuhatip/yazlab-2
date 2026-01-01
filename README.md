@@ -234,6 +234,16 @@ flowchart TD
 | Dijkstra     | 100          | 240          | 14.8      |
 | Welsh–Powell | 100          | 240          | 9.5       |
 
+### Uygulama Ekran Görüntüleri
+
+**Algoritma Performans Karşılaştırması (Compare All)**  
+![Performance Benchmark](images/performance_benchmark.png)
+
+**Welsh–Powell Graf Renklendirme Sonucu**  
+![Welsh-Powell Coloring](images/welsh_powell_coloring.png)
+
+**Dijkstra En Kısa Yol Animasyonu (Dinamik Ağırlıklar)**  
+![Dijkstra Path](images/dijkstra_path.png)
 ---
 
 ## 9. Sonuç ve Tartışma
@@ -257,4 +267,3 @@ flowchart TD
 
 ---
 
-da hazırlayabilirim.
