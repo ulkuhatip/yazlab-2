@@ -237,7 +237,7 @@ flowchart TD
 
 ![Performance Benchmark](performance_benchmark.png)
 ![Welsh-Powell Coloring](welsh_powell_coloring.png)
-![Dijkstra Path](dijkstra_path.png)
+![Dijkstra Path](dijkstra_path.jpeg)
 
 
 ## 9. Sonuç ve Tartışma
