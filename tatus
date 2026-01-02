@@ -1,0 +1,43 @@
+*   [33md03478a[m[33m ([m[1;35mrefs/stash[m[33m)[m WIP on main: 3547f5b refactor: optimize JSON parser for coordinate-independent loading and add duplicate ID validation
+[31m|[m[32m\[m  
+[31m|[m * [33m60ddfbd[m index on main: 3547f5b refactor: optimize JSON parser for coordinate-independent loading and add duplicate ID validation
+[31m|[m[31m/[m  
+* [33m3547f5b[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m refactor: optimize JSON parser for coordinate-independent loading and add duplicate ID validation
+* [33ma90d94c[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mtemiz-baslangic[m[33m)[m fix connections and coloring
+* [33m5ff7d10[m Fixed coloring path
+* [33m086b659[m Add table and changed app layout
+* [33m492e4f2[m Separate main class and create GraphController, NodeFromDialog class
+* [33m55bb262[m Fix: undirected graph algorithms, add A*, islands coloring and compatibility methods
+* [33md783926[m add maximize screen function
+* [33m85525d6[m Fix: Enable double node selection in Normal Mode for algorithms
+* [33m5d0f709[m Add graph rendering, interaction and animation layers
+*   [33m30669b9[m Resolve merge conflict in Main.java
+[33m|[m[34m\[m  
+[33m|[m * [33m7f04fd2[m Add compare all, animation and hoover func
+* [34m|[m [33mf9e5e6f[m WIP: connect mode & ghost line
+[34m|[m[34m/[m  
+* [33m93b3279[m Add GraphAlgorith Class
+* [33mf7b323b[m Fix context menu behavior and improve node deletion
+* [33m16252a4[m Add employee info panel and node click interaction
+* [33m75ccfb5[m Add edit, add and delete node/edge func
+* [33m8be6391[m Changed Json Loader file to use regex
+* [33mdf93ba8[m Generate random data func added
+* [33mc94dfcd[m Conflict solved
+*   [33mea1e3a9[m Merge branch 'main' of https://github.com/ulkuhatip/yazlab-2
+[35m|[m[36m\[m  
+[35m|[m * [33m270da21[m add edge class
+* [36m|[m [33m253c570[m Change JSON loader and fix maven file
+[36m|[m[36m/[m  
+* [33m39c97ec[m Add graph class
+*   [33mdcf69ae[m Merge branch 'main' of https://github.com/ulkuhatip/yazlab-2
+[1;31m|[m[1;32m\[m  
+[1;31m|[m * [33m8444909[m add JsonLoader
+* [1;32m|[m [33mc75f306[m Add main file
+[1;32m|[m[1;32m/[m  
+*   [33m5ad633c[m Merge branch 'main' of https://github.com/ulkuhatip/yazlab-2
+[1;33m|[m[1;34m\[m  
+[1;33m|[m * [33m1e3211e[m Fixed structure
+* [1;34m|[m [33mada322c[m add pom file
+[1;34m|[m[1;34m/[m  
+* [33md4ef35d[m Fixed structure
+* [33mb694603[m Initialize project structure with UI and graph modules

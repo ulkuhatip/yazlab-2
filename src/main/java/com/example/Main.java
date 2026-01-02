@@ -24,6 +24,8 @@ public class Main extends Application {
     private final Graph graph = new Graph();
     private final Canvas canvas = new Canvas(800, 600); // Малко по-малък, за да се събере всичко
     private final TextArea infoArea = new TextArea();
+    private final IDataLoader dataLoader = new JsonLoader();
+
     
     // Таблица за резултатите (по снимката)
     private final TableView<Node> resultTable = new TableView<>();
@@ -58,7 +60,8 @@ public class Main extends Application {
         // Зареждане на данни по подразбиране
         File defaultFile = new File("data.json");
         if (defaultFile.exists()) {
-            JsonLoader.load("data.json", graph);
+            dataLoader.load("data.json", graph);
+
         }
 
         // Helpers
@@ -315,7 +318,7 @@ colNeighbors.setPrefWidth(120);
             fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON Files", "*.json"));
             File file = fileChooser.showOpenDialog(stage);
             if (file != null) {
-                JsonLoader.load(file.getAbsolutePath(), graph);
+                dataLoader.load(file.getAbsolutePath(), graph);
                 infoArea.setText("Loaded: " + file.getName());
                 resetSelection();
             }
@@ -325,7 +328,7 @@ colNeighbors.setPrefWidth(120);
             FileChooser fileChooser = new FileChooser();
             fileChooser.setInitialFileName("data.json");
             File file = fileChooser.showSaveDialog(stage);
-            if (file != null) JsonLoader.save(file.getAbsolutePath(), graph);
+            if (file != null) dataLoader.save(file.getAbsolutePath(), graph);
         });
 
        itemGenerate.setOnAction(e -> {
